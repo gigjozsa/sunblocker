@@ -3,8 +3,8 @@ A (python pyrap) method to remove solar-like RFI from interferometric data
 
 Copyright (c) 2017 Gyula Istvan Geza Jozsa, Paolo Serra, Kshitij Thorat, Sphesihle Makhatini, NRF (Square Kilometre Array South Africa) - All Rights Reserved
 
-##Installation:
-###Using virtualenv:
+## Installation:
+### Using virtualenv:
 See installing virtualenv below if virtualenv is not installed, i.e. the first command does not work.
 
 Then find out where your virtualenv directories are stored. In this example, this directory is called `~/.virtualenv`. If there is no such directory, create one:
