@@ -1,13 +1,11 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 #
-# Copyright (c) 2016 SKA South Africa
-#
+# Copyright (c) 2017 Gyula Istvan Geza Jozsa, Paolo Serra, Kshitij Thorat, Sphesihle Makhatini, NRF (Square Kilometre Array South Africa) - All Rights Reserved
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
+# the Free Software Foundation, version 2 of the License.
 
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -51,7 +49,7 @@ def src_pkg_dirs(pkg_name):
     return pkg_dirs
 
 setup(name=pkg,
-      version="0.0.1",
+      version="0.1.0",
       description=' A (python pyrap) method to remove solar-like RFI from interferometric data',
       long_description=readme(),
       url='https://github.com/gigjozsa/sunblocker',
@@ -62,7 +60,7 @@ setup(name=pkg,
         "Programming Language :: Python",
         "Topic :: Software Development :: Libraries :: Python Modules",
         "Topic :: Scientific/Engineering :: Astronomy"],
-      author='Sphesihle Makhathini',
+      author='Gyula I. G. Jozsa, Sphesihle Makhathini, Paolo Serra, Kshitij Thorath',
       author_email='jozsa@ska.ac.za',
       license='GNU GPL v2',
       packages=[pkg],
