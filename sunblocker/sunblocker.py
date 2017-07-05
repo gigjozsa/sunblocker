@@ -1,7 +1,5 @@
 
 # Copyright (c) 2017 Gyula Istvan Geza Jozsa, Paolo Serra, Kshitij Thorat, Sphesihle Makhatini, NRF (Square Kilometre Array South Africa) - All Rights Reserved
-# The source may be distributed, modified, and used within the current research units and research groups of the authors or with expressive permission by the authors.
-# For requesting permission of usage and distribution, please write to: jozsa@ska.ac.za
 
 """
 Class Sunblocker
