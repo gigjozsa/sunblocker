@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 
 # Copyright (c) 2017 Gyula Istvan Geza Jozsa, Paolo Serra, Kshitij Thorat, Sphesihle Makhatini, NRF (Square Kilometre Array South Africa) - All Rights Reserved
 # The source may be distributed, modified, and used within the current research units and research groups of the authors or with expressive permission by the authors.
@@ -27,6 +26,7 @@ import os
 from matplotlib.path import Path
 from matplotlib.patches import PathPatch
 import types
+
 
 class Sunblocker:
     def __init__(self):
@@ -752,8 +752,8 @@ class Sunblocker:
             print 'Phazer: exiting (successfully).'
         return
 
-if __name__ == '__main__':
-    a = np.zeros((767), dtype=bool)
-    a[1:35] = True
-    mysb = Sunblocker()
-    mysb.phazer(['yoyo.ms'], outset = ['yoyout.ms'], channels = a, imsize = 512, cell = 4, pol = 'i', threshold = 4., mode = 'all', radrange = 0, angle = 0, show = 'test.pdf', verb = True, dryrun = False)
+#if __name__ == '__main__':
+#    a = np.zeros((767), dtype=bool)
+#    a[1:35] = True
+#    mysb = Sunblocker()
+#    mysb.phazer(['yoyo.ms'], outset = ['yoyout.ms'], channels = a, imsize = 512, cell = 4, pol = 'i', threshold = 4., mode = 'all', radrange = 0, angle = 0, show = 'test.pdf', verb = True, dryrun = False)
