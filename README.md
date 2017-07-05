@@ -7,11 +7,11 @@ For requesting permission of usage and distribution, please write to: jozsa@ska.
 
 Usage:
 Use method phazer of class Sunblocker in module sunblocker. See description therein. E.g.:
-
+```
 ...
 import sunblocker
 mysb = sunblocker.Sunblocker()
 mysb.phazer(['yoyo.ms'], outset = ['yoyout.ms'], channels = a, imsize = 512, cell = 4, pol = 'i', threshold = 4., mode = 'all', radrange = 0, angle = 0, show = 'test.pdf', verb = True, dryrun = False)
 ...
-
+```
 
