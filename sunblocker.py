@@ -366,8 +366,7 @@ class Sunblocker:
 
 
     def phazer(self, inset, outset = None, col = 'DATA', channels = None, baselines = None, fields = None, imsize = 512, cell = 4, mode = 'all', pol = 'parallel', threshmode = 'fit', threshold = 5., radrange = 0., angle = 0., show = None, dryrun = True, verb = False):
-        """
-        Flag Measurement Set based on scalarly averaged data
+        """Flag Measurement Set based on scalarly averaged data
 
         Input:
         inset (str)       : Input data set
@@ -391,47 +390,53 @@ class Sunblocker:
         Takes a number of input visibilities (column given by col) and
         selects a sub-set using the selection criteria col, channels
         (selecting channel ranges), baselines (a list of selected
-        baselines), and fields (list of selected fields). Then grids the
-        visibilities according to the corresponding image dimensions,
-        where imsize is the size of the image in pixels and cell is the
-        size of the cell in arcsec ( uv cell in lambda is
-        1./(imsize*cell*np.pi/(3600.*180.)) ).  The visibilities are
-        converted to Stokes parameters according to the parameter 'pol',
-        then vectorially gridded onto the calculated grid, then the
-        absolutes are calculated (alternatively the PHAses are set to
-        ZERo) and then the visibilities are averaged along the frequency
-        axis. Then from this data product, some visibilities are flagged
-        using a clipping technique. This can be done using all baselines
-        in one go, all antennas in one go (repeated for each antenna), all
-        baselines (repeated per baseline). For these data average and
-        standard deviation (rms) of all points in data are calculated
-        whose indices are not flagged as True in mask. If mode == 'fit' a
-        histogram is created and attempt to fit a Gaussian, replacing the
-        rms with the fitted dispersion and the average with the centre of
-        the Gaussian. Then all data with a positive distance of greater
-        than threshold times sigma (either fitted or standard deviation)
-        from the mean (or position of fitted Gaussian) are flagged
-        (lipped). If mode == 'absolute', all data above the absolute value
-        given in threshold are clipped instead. Each such flagged data
-        point can be extended by a wedge, inside which all data points are
-        flagged.  The radial range of the wedge is the radius of the point
-        (distance from origin) plus and minus half of radrange, the
-        angular range is given by the direction of the centre (position
-        angle with respect to the centre) plus and minus angle/2.  Finally
-        the flags are expanded in the polarisation and frequency direction
-        and applied to the output data, which have to have the dimension
-        of the input data. If the output data are of None type, it is
-        assumed that the flags should be applied to the input data. If the
-        output data have a name, then they are copies of the input data
-        sets if they do not exist, otherwise the flags will be applied to
-        the output data sets instead of the input data sets. If show is
-        set to None, no plots will be produced. If show is a string type,
-        hardcopy output plots (hist_$show and select_$show) will be
-        produced, one showing the histograms, two Gaussians (red: fitted,
-        green: according to mean and standard deviation), and the
-        threshold position, and the other the uv coverage with the gridded
-        values and the flagged data (red) and flagged data before wedge
-        expansion (green).
+        baselines), and fields (list of selected fields). Then grids
+        the visibilities according to the corresponding image
+        dimensions, where imsize is the size of the image in pixels
+        and cell is the size of the cell in arcsec ( uv cell in lambda
+        is 1./(imsize*cell*np.pi/(3600.*180.)) ). In this process the
+        assumed frequency to express uv coordinates in units of
+        wavelength is the average frequency in the data set. Notice
+        that this is not precise for a large bandwith. The
+        visibilities are converted to Stokes parameters according to
+        the parameter 'pol', then vectorially gridded onto the
+        calculated grid, then the absolutes are calculated
+        (alternatively the PHAses are set to ZERo) and then the
+        visibilities are averaged along the frequency axis. Then from
+        this data product, some visibilities are flagged using a
+        clipping technique. This can be done using all baselines in
+        one go, all antennas in one go (repeated for each antenna),
+        all baselines (repeated per baseline). For these data average
+        and standard deviation (rms) of all points in data are
+        calculated whose indices are not flagged as True in mask. If
+        mode == 'fit' a histogram is created and attempt to fit a
+        Gaussian, replacing the rms with the fitted dispersion and the
+        average with the centre of the Gaussian. Then all data with a
+        positive distance of greater than threshold times sigma
+        (either fitted or standard deviation) from the mean (or
+        position of fitted Gaussian) are flagged (lipped). If mode ==
+        'absolute', all data above the absolute value given in
+        threshold are clipped instead. Each such flagged data point
+        can be extended by a wedge, inside which all data points are
+        flagged.  The radial range of the wedge is the radius of the
+        point (distance from origin) plus and minus half of radrange,
+        the angular range is given by the direction of the centre
+        (position angle with respect to the centre) plus and minus
+        angle/2.  Finally the flags are expanded in the polarisation
+        and frequency direction and applied to the output data, which
+        have to have the dimension of the input data. If the output
+        data are of None type, it is assumed that the flags should be
+        applied to the input data. If the output data have a name,
+        then they are copies of the input data sets if they do not
+        exist, otherwise the flags will be applied to the output data
+        sets instead of the input data sets. If show is set to None,
+        no plots will be produced. If show is a string type, hardcopy
+        output plots (hist_$show and select_$show) will be produced,
+        one showing the histograms, two Gaussians (red: fitted, green:
+        according to mean and standard deviation), and the threshold
+        position, and the other the uv coverage with the gridded
+        values and the flagged data (red) and flagged data before
+        wedge expansion (green).
 
         """
         if verb:
