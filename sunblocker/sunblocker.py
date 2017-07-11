@@ -668,7 +668,7 @@ class Sunblocker:
                 if i%500 == 0:
                     print 'Phazer: extended %i points.' % i
                 thepath = self.wedge_around_centre(flaggeduv[i,:], radrange, angle)
-                newflags[selwith_path(thepath, uv)] = True
+                newflags[self.selwith_path(thepath, uv)] = True
                 if show != None:
                     patches.append(PathPatch(thepath, facecolor='orange', lw=0, alpha = 0.1))
 
