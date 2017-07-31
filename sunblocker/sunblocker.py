@@ -363,7 +363,7 @@ class Sunblocker:
         return data, flags, uv, antenna1, antenna2, antennanames
 
 
-    def phazer(self, inset, outset = None, col = 'DATA', channels = None, baselines = None, fields = None, imsize = 512, cell = 4, mode = 'all', pol = 'parallel', threshmode = 'fit', threshold = 5., radrange = 0., angle = 0., show = None, dryrun = True, verb = False):
+    def phazer(self, inset = None, outset = None, col = 'DATA', channels = None, baselines = None, fields = None, imsize = 512, cell = 4, mode = 'all', pol = 'parallel', threshmode = 'fit', threshold = 5., radrange = 0., angle = 0., show = None, showdir = '.', dryrun = True, verb = False):
         """Flag Measurement Set based on scalarly averaged data
 
         Input:
@@ -382,6 +382,7 @@ class Sunblocker:
         radrange (float)  : Each selected point is expanded in a wedge with this radial range
         angle (float)     : Each selected point is expanded in a wedge with this angular
         show (bool)       : Show histogram and cutoff line in a viewgraph
+        showdir (str)     : Directory to put viewgraphs in
         dryrun (bool)     : Do not apply flags, but (e.g. produce viewgraphs only)
         verb (bool)       : Switch commenting on and off
 
@@ -443,6 +444,12 @@ class Sunblocker:
         # Open data set as table
         if verb:
             print 'Phazer: opening input files.'
+
+        if inset == None:
+            if verb:
+                print 'Phazer: No input. Stopping.'
+                print 'Phazer: exiting (successfully).'
+
         if type(inset) == str:
             inset = [inset]
 
@@ -576,7 +583,7 @@ class Sunblocker:
             plt.xlabel('u')
             plt.ylabel('v')
             if type(show) == str:
-                plt.savefig('griddedvis_'+show)
+                plt.savefig(showdir+'griddedvis_'+show)
                 plt.close()
             else:
                 plt.show()
@@ -645,7 +652,7 @@ class Sunblocker:
                     i = i+1
         if show != None:
             if type(show) == str:
-                plt.savefig('histo_'+show)
+                plt.savefig(showdir+'/'+'histo_'+show)
                 plt.close()
             else:
                 plt.show()
@@ -697,7 +704,7 @@ class Sunblocker:
             notflaggeduv = notflaggeduv.reshape(notflaggeduv.size/2, 2)
             ax.plot(notflaggeduv[:,0], notflaggeduv[:,1], '.b', markersize = 0.3)
             if type(show) == str:
-                plt.savefig('select_'+show)
+                plt.savefig(showdir+'/'+'select_'+show)
                 plt.close()
             else:
                 plt.show()
@@ -759,4 +766,4 @@ class Sunblocker:
 #    a = np.zeros((767), dtype=bool)
 #    a[1:35] = True
 #    mysb = Sunblocker()
-#    mysb.phazer(['yoyo.ms'], outset = ['yoyout.ms'], channels = a, imsize = 512, cell = 4, pol = 'i', threshold = 4., mode = 'all', radrange = 0, angle = 0, show = 'test.pdf', verb = True, dryrun = False)
+#    mysb.phazer(inset = ['yoyo.ms'], outset = ['yoyout.ms'], channels = a, imsize = 512, cell = 4, pol = 'i', threshold = 4., mode = 'all', radrange = 0, angle = 0, show = 'test.pdf', verb = True, dryrun = False)
