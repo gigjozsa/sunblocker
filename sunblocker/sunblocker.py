@@ -24,6 +24,10 @@ import os
 from matplotlib.path import Path
 from matplotlib.patches import PathPatch
 import types
+import astropy.units as units
+import astropy.time as time
+import astropy.coordinates as coordinates
+import ephem
 
 
 class Sunblocker:
@@ -762,8 +766,192 @@ class Sunblocker:
             print 'Phazer: exiting (successfully).'
         return
 
+    def astropy_to_pyephemtime(self, astropytime):
+        return astropytime.mjd-15019.5
+
+    def vampirisms(self, inset, lat = -30.721*units.deg, lon = 21.411*units.deg, hei = 100.*units.m, dryrun = True, avantsoleil = 0.*units.s, apresnuit = 0.*units.s, avantnuit = 0.*units.s, apresoleil = 0.*units.s, horizon = -34.*units.arcmin, nononsoleil = True, flinvert = False, verb = False):
+        """Identifies times in a data set where sun is up or down and provides flags
+        
+        Input:
+        inset (str)            : Input data set
+        lon (astropy angle)    : Longitude of observatory in astropy units (defaults to MeerKAT)
+        lat (astropy angle)    : Latitude of observatory in astropy units (defaults to MeerKAT)
+        hei (astropy length)   : Elevation of observatory in astropy units (defaults to MeerKAT)
+        dryrun (str)           : Flag data if True, only write comments otherwise (defaults to True)
+        avantsoleil (float)    : Time to be flagged before sunrise in astropy units (defaults to 0)
+        apresnuit   (float)    : Time to be flagged after sunrise in astropy units (defaults to 0)
+        avantnuit   (float)    : Time to be flagged before sunset in astropy units (defaults to 0)
+        apresoleil (float)     : Time to be flagged after sunset in astropy units (defaults to 0)
+        nononsoleil (bool)     : Flag all day time (defaults to True)
+        horizon (astropy angle): Height above horizon of the sun to define sunset in astropy units (defaults to -34 arcmin)
+        flinvert (bool)        : Invert flags before applying/returning them (defaults to False)
+        verb (bool)            : Switch commenting on and off (defaults to False)
+
+        Output: binary table with flags
+
+        Takes data set inset as input data set and calculates sunrise
+        and -set times, under the assumption of terrestrial longitued
+        lon, latitude lat, elevation hei in astropy units. Then
+        creates a binary array with flags (True if flagged), which
+        gets returned at the end. The flags are set for times from
+        sunrise-avantsoleil to sunrise+apresnuit and sunset-avantnuit
+        to sunset+apresoleil. If nononsoleil is True, also the day
+        times between sunrise and sunset are flagged. With horizon the
+        height above the horizon is defined, crossing which defines
+        sunset and sunrise. Flinvert inverts the flags before return,
+        such that they are True where they were False before and vice
+        versa, i.e. the times around sunrise and sunset and
+        potentially in-between (in day time) are not flagged, while
+        the rest is. If dryrun is set to False, the flags are applied
+        to the data. If verb is True, the actions of vampirisms are
+        documented.
+
+        """
+
+        print 'Vampirisms: start.'
+
+        if verb:
+            if dryrun:
+                print 'Vampirisms: this is a dry run. Flags will not be applied.'
+                drypre = 'not'
+            else:
+                drypre = ''
+            if avantsoleil != 0.:
+                print 'Vampirisms: %s flagging starts %s before sunrise.' % (drypre, avantsoleil)
+            else:
+                print 'Vampirisms: %s flagging starts at sunrise' % drypre
+            if not nononsoleil:
+                if apresnuit != 0.:
+                    print 'Vampirisms: %s flagging ends %s after sunrise.' % (drypre, apresnuit)
+                else:
+                    print 'Vampirisms: %s flagging ends at sunrise' % drypre
+                if avantnuit != 0.:
+                    print 'Vampirisms: %s flagging starts %s before sunset.' % (drypre, avantnuit)
+            if apresoleil != 0.:
+                print 'Vampirisms: %s flagging ends %s after sunset.' % (drypre, apresoleil)
+            else:
+                print 'Vampirisms: %s flagging ends at sunset' % drypre
+
+            if horizon != 0.:
+                print 'Vampirisms: we think that the sun has really set (oh how I hate it!) when its centre is %s below the horizon' % (-horizon)
+
+                
+        # We really don't want to hear about this
+        if verb:
+            print 'Vampirisms: opening visibility file.'
+        if dryrun:
+            t = self.opensilent(inset)
+        else:
+            t= self.opensilent(inset, readonly = False)
+            
+        # Read time stamps
+        if verb:
+            print 'Vampirisms: reading time stamps.'
+        dd = t.getcol('TIME')/(24.*3600.)
+        times = time.Time(dd, format='mjd', scale='utc')
+        obstart = np.amin(times)
+        eobstart = ephem.Date(self.astropy_to_pyephemtime(obstart))
+        obsend = np.amax(times)
+        eobsend = ephem.Date(self.astropy_to_pyephemtime(obsend))
+        if verb:
+            print 'Vampirisms: the observation started at %s (UTC)' % obstart.iso
+            print 'Vampirisms: the observation ended at %s (UTC)' % obsend.iso
+
+        etimes = self.astropy_to_pyephemtime(times)
+        
+        telpos = coordinates.EarthLocation(lat=lat, lon=lon, height=hei)
+
+        # Pyephem stuff
+        etel = ephem.Observer()
+        etel.lon = lon.to(units.rad).value
+        etel.lat = lat.to(units.rad).value
+        etel.elevation = hei.to(units.m).value
+        etel.horizon = horizon.to(units.rad).value
+        esun = ephem.Sun()
+
+        # Now find the status at the beginning of the observations
+        etel.date = eobstart
+
+        # Here, esti is the next sunrise and eeti is the next sunset
+        esti = etel.next_rising(esun)
+        eeti = etel.next_setting(esun)
+       
+        if esti > eeti:
+            # From here on, esti is the start of a daylight period during the observation and eeti the end of it
+            esti = eobstart
+            if verb:
+                print 'Vampirisms: at the beginning of the observation the sun (urgh!) was above the horizon. Not a good time.'
+        else:
+            if verb:
+                print 'Vampirisms: at the beginning of the observation the sun (baah!) was b-lo the horizon. This is our time! Hoahahaha! Ha!'
+            esti = etel.next_rising(esun)
+            if esti < eobsend:
+                if verb:
+                    print 'Vampirisms: the sun (yuck!) rose at %s (UTC)' % esti
+
+        flags = np.zeros(dd.size, dtype = bool)
+        
+        while (esti-float(avantsoleil.to(units.d).value)) < eobsend:
+            etel.date = esti       
+            eeti = etel.next_setting(esun)
+       
+            if eeti < eobsend:
+                if verb:
+                    print 'Vampirisms: the sun (hrgh!) set at %s (UTC), time to rise, Ha! HA, HAHA!' % eeti
+
+            if nononsoleil:                
+                # Only one bracket, add times
+                estiapp = float(esti)-float(avantsoleil.to(units.d).value)
+                eetiapp = float(eeti)+float(apresoleil.to(units.d).value)
+                if verb:
+                    estihad = max(estiapp, eobstart)
+                    eetihad = min(eetiapp, eobsend)
+                    print 'Vampirisms: %s flagging between %s (UTC) and %s (UTC).' % (drypre, ephem.Date(estihad), ephem.Date(eetihad))
+                flags = flags+(etimes >= float(estiapp)) * (float(eetiapp) >= etimes)
+            else:
+                # Two brackets, add times
+                estiapp = float(esti)-float(avantsoleil.to(units.d).value)
+                eetiapp = float(esti)+float(apresnuit.to(units.d).value)
+                estiapp2 = float(eeti)-float(avantnuit.to(units.d).value)
+                eetiapp2 = float(eeti)+float(apresoleil.to(units.d).value)
+                if verb:
+                    estihad = max(estiapp, eobstart)
+                    eetihad = min(eetiapp2, eobsend)
+                    print 'Vampirisms: %s flagging between %s (UTC) and %s (UTC) and' % (drypre, ephem.Date(estihad), ephem.Date(eetiapp))
+                    if estiapp2 < eobsend:
+                        print 'Vampirisms: %s flagging between %s (UTC) and %s (UTC).' % (drypre, ephem.Date(estiapp2), ephem.Date(eetihad))
+                flags = flags+(etimes >= float(estiapp)) * (float(eetiapp) >= etimes)
+                flags = flags+(etimes >= float(estiapp2)) * (float(eetiapp2) >= etimes)
+
+            # Get next sunrise by setting the current time to the current sunset and requesting next sunrise
+            etel.date = eeti       
+            esti = etel.next_rising(esun)
+            if esti < eobsend:
+                if verb:
+                    print 'Vampirisms: the sun (aargh!) rose at %s' % esti
+
+        # Invert flags
+        if flinvert:
+            if verb:
+                print 'Inverting flags, that means %s flag everything in the night (terrible)!' % drypre
+            flags = np.logical_not(flags)
+        
+        # Now apply flags
+        if verb:
+            print 'Vampirisms: %s applying flags to data.' % drypre
+        if not dryrun:
+            oflags = t.getcol('FLAG')
+            oflags[flags,:,:] = True
+            t.putcol('FLAG', oflags)
+
+        print 'Vampirisms: finis.'
+
+        t.close()
+        return flags
+
 #if __name__ == '__main__':
 #    a = np.zeros((767), dtype=bool)
 #    a[1:35] = True
 #    mysb = Sunblocker()
 #    mysb.phazer(inset = ['yoyo.ms'], outset = ['yoyout.ms'], channels = a, imsize = 512, cell = 4, pol = 'i', threshold = 4., mode = 'all', radrange = 0, angle = 0, show = 'test.pdf', verb = True, dryrun = False)
+#mysb.vampirisms(inset = 'yoyo.ms', lat = -30.721*units.deg, lon = 21.411*units.deg, hei = 100.*units.m, dryrun = True, avantsoleil = 1.*units.s, apresnuit = 2.*units.s, avantnuit = 3.*units.s, apresoleil = 4.*units.s, horizon = -34.*units.arcmin, nononsoleil = False, flinvert = False, verb = True)
