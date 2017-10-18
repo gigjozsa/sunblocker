@@ -24,6 +24,7 @@ Then install the required packages into your virtualenv.
 ```
 $ pip install --upgrade pip
 $ pip install -r [path to sunblocker]/requirements.txt
+$ pip install [path to sunblocker]/
 ```
 Any time you activate the virtualenvironment (the `source ...` command above) only the installed packages will be available and the installation is protected against any other installation, that is the virtue of the virtualenv.
 
@@ -43,8 +44,9 @@ Use method phazer of class Sunblocker in module sunblocker. See description ther
 ```
 ...
 import sunblocker
-mysb = sunblocker.Sunblocker()
+mysb = sunblocker.sunblocker.Sunblocker()
 mysb.phazer(['yoyo.ms'], outset = ['yoyout.ms'], channels = a, imsize = 512, cell = 4, pol = 'i', threshold = 4., mode = 'all', radrange = 0, angle = 0, show = 'test.pdf', verb = True, dryrun = False)
+mysb.vampirisms(inset = '../IC5264_160627/IC5264_160627.ms', lat = -30.721*units.deg, lon = 21.411*units.deg, hei = 100.*units.m, dryrun = True, avantsoleil = 1.*units.s, apresnuit = 2.*units.s, avantnuit = 3.*units.s, apresoleil = 4.*units.s, horizon = -34.*units.arcmin, nononsoleil = False, flinvert = False, verb = True)
 ...
 ```
 ## Installing virtualenv:
