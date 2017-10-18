@@ -769,14 +769,14 @@ class Sunblocker:
     def astropy_to_pyephemtime(self, astropytime):
         return astropytime.mjd-15019.5
 
-    def vampirisms(self, inset, lat = -30.721*units.deg, lon = 21.411*units.deg, hei = 100.*units.m, dryrun = True, avantsoleil = 0.*units.s, apresnuit = 0.*units.s, avantnuit = 0.*units.s, apresoleil = 0.*units.s, horizon = -34.*units.arcmin, nononsoleil = True, flinvert = False, verb = False):
+    def vampirisms(self, inset, lat = None, lon = None, hei = None, dryrun = True, avantsoleil = 0.*units.s, apresnuit = 0.*units.s, avantnuit = 0.*units.s, apresoleil = 0.*units.s, horizon = -34.*units.arcmin, nononsoleil = True, flinvert = False, verb = False):
         """Identifies times in a data set where sun is up or down and provides flags
         
         Input:
         inset (str)            : Input data set
-        lon (astropy angle)    : Longitude of observatory in astropy units (defaults to MeerKAT)
-        lat (astropy angle)    : Latitude of observatory in astropy units (defaults to MeerKAT)
-        hei (astropy length)   : Elevation of observatory in astropy units (defaults to MeerKAT)
+        lon (astropy angle)    : Longitude of observatory in astropy units (defaults to what is found in the data set)
+        lat (astropy angle)    : Latitude of observatory in astropy units (defaults to what is found in the data set)
+        hei (astropy length)   : Elevation of observatory in astropy units (defaults to what is found in the data set)
         dryrun (str)           : Flag data if True, only write comments otherwise (defaults to True)
         avantsoleil (float)    : Time to be flagged before sunrise in astropy units (defaults to 0)
         apresnuit   (float)    : Time to be flagged after sunrise in astropy units (defaults to 0)
@@ -838,12 +838,33 @@ class Sunblocker:
                 
         # We really don't want to hear about this
         if verb:
-            print 'Vampirisms: opening visibility file.'
+            print 'Vampirisms: opening visibility file %s.' % inset
         if dryrun:
             t = self.opensilent(inset)
         else:
             t= self.opensilent(inset, readonly = False)
-            
+        antennapos = t.ANTENNA.getcol('POSITION')
+        telgeo = np.average(antennapos, axis = 0)*units.meter
+
+        # In theory the units could be different, but they aren't
+        telunit = t.ANTENNA.POSITION.QuantumUnits
+        for i in telunit:
+            if i != 'm':
+                raise('Vampirisms: Unknown unit in visibility file.')
+        telpos = coordinates.EarthLocation(x = telgeo[0], y = telgeo[1], z = telgeo[2])
+        lone = telpos.geodetic.lon 
+        if lon != None:
+            lone = lon
+        late = telpos.geodetic.lat
+        if lat != None:
+            late = lat
+        heie = telpos.geodetic.height
+        if hei != None:
+            heie  = hei
+        telpos = coordinates.EarthLocation(lon = lone, lat = late, height = heie)
+
+        print 'It appears that the observatory latitude is %s, the longitude %s, and the height %s' % (telpos.geodetic.lon, telpos.geodetic.lat, telpos.geodetic.height)
+
         # Read time stamps
         if verb:
             print 'Vampirisms: reading time stamps.'
@@ -859,13 +880,12 @@ class Sunblocker:
 
         etimes = self.astropy_to_pyephemtime(times)
         
-        telpos = coordinates.EarthLocation(lat=lat, lon=lon, height=hei)
 
         # Pyephem stuff
         etel = ephem.Observer()
-        etel.lon = lon.to(units.rad).value
-        etel.lat = lat.to(units.rad).value
-        etel.elevation = hei.to(units.m).value
+        etel.lon = telpos.geodetic.lon.to(units.rad).value
+        etel.lat = telpos.geodetic.lat.to(units.rad).value
+        etel.elevation = telpos.geodetic.height.to(units.m).value
         etel.horizon = horizon.to(units.rad).value
         esun = ephem.Sun()
 
@@ -875,7 +895,9 @@ class Sunblocker:
         # Here, esti is the next sunrise and eeti is the next sunset
         esti = etel.next_rising(esun)
         eeti = etel.next_setting(esun)
-       
+
+        ncross = 0
+        
         if esti > eeti:
             # From here on, esti is the start of a daylight period during the observation and eeti the end of it
             esti = eobstart
@@ -886,6 +908,7 @@ class Sunblocker:
                 print 'Vampirisms: at the beginning of the observation the sun (baah!) was b-lo the horizon. This is our time! Hoahahaha! Ha!'
             esti = etel.next_rising(esun)
             if esti < eobsend:
+                ncross += 1
                 if verb:
                     print 'Vampirisms: the sun (yuck!) rose at %s (UTC)' % esti
 
@@ -896,6 +919,7 @@ class Sunblocker:
             eeti = etel.next_setting(esun)
        
             if eeti < eobsend:
+                ncross += 1
                 if verb:
                     print 'Vampirisms: the sun (hrgh!) set at %s (UTC), time to rise, Ha! HA, HAHA!' % eeti
 
@@ -927,13 +951,31 @@ class Sunblocker:
             etel.date = eeti       
             esti = etel.next_rising(esun)
             if esti < eobsend:
+                ncross += 1
                 if verb:
                     print 'Vampirisms: the sun (aargh!) rose at %s' % esti
 
+        if verb:
+            addendum  = ''
+            if ncross > 1:
+                print 'Vampirisms: the sun crossed the horizon %i times during the observation' % ncross
+            else:
+                if ncross > 0:
+                    print 'Vampirisms: the sun (yargl!) crossed the horizon once during the observation'
+                else:
+                    print 'Vampirisms: the sun (woe!) never crossed the horizon during the observation'
+                    addendum = 'still '
+                    
+                    
+            if esti > eeti:
+                print 'Vampirisms: at the end of the observation the sun (Uuuh!) was %s up.' % addendum
+            else:
+                print 'Vampirisms: at the end of the observation it was %s a beautiful night.' % addendum
+                
         # Invert flags
         if flinvert:
             if verb:
-                print 'Inverting flags, that means %s flag everything in the night (terrible)!' % drypre
+                print 'Vampirisms: inverting flags, that means %s flag everything in the night (terrible)!' % drypre
             flags = np.logical_not(flags)
         
         # Now apply flags
