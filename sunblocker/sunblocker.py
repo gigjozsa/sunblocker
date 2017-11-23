@@ -1,5 +1,6 @@
-
 # Copyright (c) 2017 Gyula Istvan Geza Jozsa, Paolo Serra, Kshitij Thorat, Sphesihle Makhatini, NRF (Square Kilometre Array South Africa) - All Rights Reserved
+import matplotlib
+matplotlib.use('Agg')
 
 """
 Class Sunblocker
@@ -587,7 +588,8 @@ class Sunblocker:
             plt.xlabel('u')
             plt.ylabel('v')
             if type(show) == str:
-                plt.savefig(showdir+'griddedvis_'+show)
+                savefile = os.path.join(showdir, 'griddedvis_'+show)
+                plt.savefig(savefile)
                 plt.close()
             else:
                 plt.show()
