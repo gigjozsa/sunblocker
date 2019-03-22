@@ -406,10 +406,10 @@ class Sunblocker:
         angle (float)          : Each selected point is expanded in a wedge with this angular
 
         vampirisms (bool)      : Apply only on daytime data
-        avantsoleil (float)    : Time to be flagged before sunrise in astropy units (defaults to 30 minutes)
-        apresnuit   (float)    : Time to be flagged after sunrise in astropy units (defaults to 60 minutes)
-        avantnuit   (float)    : Time to be flagged before sunset in astropy units (defaults to 60 minutes)
-        apresoleil (float)     : Time to be flagged after sunset in astropy units (defaults to 30 minutes)
+        avantsoleil (float)    : Time to be evaluated before sunrise in astropy units (defaults to 30 minutes)
+        apresnuit   (float)    : Time to be evaluated after sunrise in astropy units (defaults to 60 minutes)
+        avantnuit   (float)    : Time to be evaluated before sunset in astropy units (defaults to 60 minutes)
+        apresoleil (float)     : Time to be evaluated after sunset in astropy units (defaults to 30 minutes)
         horizon (astropy angle): Height above horizon of the sun to define sunset in astropy units (defaults to -34 arcmin)
         nononsoleil (bool)     : Apply only on time windows around sunrise and sunset or on all day time data (if True, which is the default)
         uvmin (float)          : Restrict analysis to visibilities with a baseline b with uvmax > b > uvmin 
