@@ -1,5 +1,6 @@
 # Copyright (c) 2017 Gyula Istvan Geza Jozsa, Paolo Serra, Kshitij Thorat, Sphesihle Makhatini, NRF (Square Kilometre Array South Africa) - All Rights Reserved
 import matplotlib
+import types
 matplotlib.use('Agg')
 
 """
@@ -35,15 +36,22 @@ class Sunblocker:
     def __init__(self):
         pass
     
-    def opensilent(self, inset, readonly = True):
+    def opensilent(self, inset = None, readonly = True):
         """
         Opening inset with pyrap as a table suppressing any feedback from pyrap
 
         Input:
-        inset (string): Input data set
+        inset (string): Input data set (string, pyrap table handle, or None)
 
         Output (pyrap table object): opensilent
+
+        If inset is a string it's interpreted as file name, which is then opened, otherwise just returns the input.
         """
+
+        # This is where we check what is opened
+        if type(inset) != types.StringType:
+            return inset
+        
         old_stdout = sys.stdout
         sys.stdout = open(os.devnull, "w")
         t = tables.table(inset, readonly = readonly)
@@ -236,11 +244,11 @@ class Sunblocker:
 
         return select
 
-    def readdata(self, inset, col = 'DATA', fields = None, channels = None, baselines = None, pol = 'i', verb = False):
+    def readdata(self, inset = None, col = 'DATA', fields = None, channels = None, baselines = None, pol = 'i', verb = False):
         """Open a data set inset and return a few tables
 
         Input:
-        inset (str)            : Input data set
+        inset (str)            : Input data set, either string (which gets opened and closed) or a pyrap table handle, which will not be closed.
         col (str)              : Column name to base flagging on (e.g. 'DATA' or 'CORRECTED')
         fields (int)           : Fields to select or None if all fields should be used
         channels (bool array)  : dtype = bool array with True for channels to base the analysis on "False" channels will be ignored
@@ -251,18 +259,25 @@ class Sunblocker:
         Output:
         readdate: data (complex array, array of single visibilities, Stokes I or Q per frequency), flags (bool array), uv (float array, uv coordinates), antenna1 (int array), antenna2 (int array), antennanames (string array)
 
-        Will read in data set inset and read data column col (can be
-        'DATA', 'CORRECTED', etc.). Apply flags, then calculate Stokes I
-        or Q. Change flags to True for any visibility not in the specified
-        fields (None means use everything). Change flags to True for
-        anything not True in specified channels. Change flags to True for
-        anything not contained in the baselines array. Then set all data
-        read to numpy.nan if flags == True. Return data, flags,
+        Will read in data set inset. If inset is a string it
+        interprets as file name. If it is None, program will stop and
+        assume a pyrap file handle otherwise. Then read data column
+        col (can be 'DATA', 'CORRECTED', etc.). Apply flags, then
+        calculate Stokes I or Q. Change flags to True for any
+        visibility not in the specified fields (None means use
+        everything). Change flags to True for anything not True in
+        specified channels. Change flags to True for anything not
+        contained in the baselines array. Then set all data read to
+        numpy.nan if flags == True. Return data, flags,
         uv-coordinates, antenna1, antenna2, antennanames.
+
         """
 
         # We really don't want to hear about this
-        t = self.opensilent(inset)
+        if type(inset) ==  types.StringType:
+            t = self.opensilent(inset)
+        else:
+            t = inset
 
         # Read column (think, axes are by default ordered as time, frequency, polarization) and flags, which should have same dimension
         if verb:
@@ -326,7 +341,7 @@ class Sunblocker:
                 print 'Selecting specified fields.'
             field = t.getcol('FIELD')
             select = np.zeros(field.shape, dtype = bool)
-            if type(fields) == list:
+            if type(fields) == types.ListType:
                 for i in fields:
                     select |= field == i
             else:
@@ -363,33 +378,47 @@ class Sunblocker:
         data[flags] = np.nan
 
         antennanames = t.ANTENNA.getcol('NAME')
-        t.close()
+        
+        # Close only if this has been a string
+        if type(inset) == 'str':
+            t.close()
 
         return data, flags, uv, antenna1, antenna2, antennanames
 
 
-    def phazer(self, inset = None, outset = None, col = 'DATA', channels = None, baselines = None, fields = None, imsize = 512, cell = 4, mode = 'all', pol = 'parallel', threshmode = 'fit', threshold = 5., radrange = 0., angle = 0., show = None, showdir = '.', dryrun = True, verb = False):
+    def phazer(self, inset = None, outset = None, col = 'DATA', channels = None, baselines = None, fields = None, imsize = 512, cell = 4, mode = 'all', pol = 'parallel', threshmode = 'fit', threshold = 5., radrange = 0., angle = 0., vampirisms = False, avantsoleil = 0.*units.s, apresnuit = 0.*units.s, avantnuit = 0.*units.s, apresoleil = 0.*units.s, horizon = -34.*units.arcmin, nononsoleil = True, uvmin = 0., uvmax = None, show = None, showdir = '.', dryrun = True, verb = False):
         """Flag Measurement Set based on scalarly averaged data
 
         Input:
-        inset (str)       : Input data set
-        outset (str)      : Name of output data set or None, in which case outset = inset
-        col (str)         : Column name to base flagging on (e.g. 'DATA' or 'CORRECTED')
-        channels (array)  : dtype = bool array with True for channels to base the analysis on "False" channels will be ignored
-        baselines (array) : nx2 array with antenna pairs for baselines to base the analysis on
-        fields (int)      : Fields to select or None if all fields should be used
-        imsize (int)      : Size of image in pixels
-        cell (float)      : Size of cell in arcsec
-        mode (str)        : Flagging based on 'all' data, repeated per 'antenna', or repeated per 'baseline'
-        pol (str)         : Polarization selection, Stokes 'i', or Stokes 'q' 
-        threshmode (str)  : Method to determine sigma, 'fit': fit Gaussian at the max to determine sigma, standard deviation otherwise
-        threshold (float) : Distance from average beyond which data are flagged in units of sigma
-        radrange (float)  : Each selected point is expanded in a wedge with this radial range
-        angle (float)     : Each selected point is expanded in a wedge with this angular
-        show (bool)       : Show histogram and cutoff line in a viewgraph
-        showdir (str)     : Directory to put viewgraphs in
-        dryrun (bool)     : Do not apply flags, but (e.g. produce viewgraphs only)
-        verb (bool)       : Switch commenting on and off
+        inset (str)            : Input data set
+        outset (str)           : Name of output data set or None, in which case outset = inset
+        col (str)              : Column name to base flagging on (e.g. 'DATA' or 'CORRECTED')
+        channels (array)       : dtype = bool array with True for channels to base the analysis on "False" channels will be ignored
+        baselines (array)      : nx2 array with antenna pairs for baselines to base the analysis on
+        fields (int)           : Fields to select or None if all fields should be used
+        imsize (int)           : Size of image in pixels
+        cell (float)           : Size of cell in arcsec
+        mode (str)             : Flagging based on 'all' data, repeated per 'antenna', or repeated per 'baseline'
+        pol (str)              : Polarization selection, Stokes 'i', or Stokes 'q' 
+        threshmode (str)       : Method to determine sigma, 'fit': fit Gaussian at the max to determine sigma, standard deviation otherwise
+        threshold (float)      : Distance from average beyond which data are flagged in units of sigma
+        radrange (float)       : Each selected point is expanded in a wedge with this radial range
+        angle (float)          : Each selected point is expanded in a wedge with this angular
+
+        vampirisms (bool)      : Apply only on daytime data
+        avantsoleil (float)    : Time to be flagged before sunrise in astropy units (defaults to 30 minutes)
+        apresnuit   (float)    : Time to be flagged after sunrise in astropy units (defaults to 60 minutes)
+        avantnuit   (float)    : Time to be flagged before sunset in astropy units (defaults to 60 minutes)
+        apresoleil (float)     : Time to be flagged after sunset in astropy units (defaults to 30 minutes)
+        horizon (astropy angle): Height above horizon of the sun to define sunset in astropy units (defaults to -34 arcmin)
+        nononsoleil (bool)     : Apply only on time windows around sunrise and sunset or on all day time data (if True, which is the default)
+        uvmin (float)          : Restrict analysis to visibilities with a baseline b with uvmax > b > uvmin 
+        uvmin (float)          : Restrict analysis to visibilities with a baseline b with uvmax > b > uvmin 
+        horizon (astropy angle): Height above horizon of the sun to define sunset in astropy units (defaults to -34 arcmin)
+        show (bool)            : Show histogram and cutoff line in a viewgraph
+        showdir (str)          : Directory to put viewgraphs in
+        dryrun (bool)          : Do not apply flags, but (e.g. produce viewgraphs only)
+        verb (bool)            : Switch commenting on and off
 
         Takes a number of input visibilities (column given by col) and
         selects a sub-set using the selection criteria col, channels
@@ -455,7 +484,7 @@ class Sunblocker:
                 print 'Phazer: No input. Stopping.'
                 print 'Phazer: exiting (successfully).'
 
-        if type(inset) == str:
+        if type(inset) ==  types.StringType:
             inset = [inset]
 
         if verb:
@@ -470,13 +499,38 @@ class Sunblocker:
             print 'Phazer: reading %s.' % inset[0]
 
         nrows=[0,]
-        data, flags, uv, antenna1, antenna2, antennanames = self.readdata(inset[0], col = col, fields = fields, channels = channels, baselines = baselines, pol = pol, verb = verb)
+        tutu = self.opensilent(inset[0])
+        data, flags, uv, antenna1, antenna2, antennanames = self.readdata(tutu, col = col, fields = fields, channels = channels, baselines = baselines, pol = pol, verb = verb)
+
+#        print 'flags shape', flags.shape
+#        print 'data shape', data.shape
+#        print 'any?', np.any(flags)
+        
+        # Now additionally flag all night visibilities if user wants
+        if vampirisms:
+            if verb:
+                    print 'Phazer: applying vampirisms to dataset %s.' % inset[0]
+            dayflags = self.vampirisms(tutu, dryrun = True, avantsoleil = avantsoleil, apresnuit = apresnuit, avantnuit = avantnuit, apresoleil = apresoleil, horizon = horizon, nononsoleil = nononsoleil, flinvert = True, verb = verb)
+#            print 'finding out about dayflags:'
+#            print np.all(dayflags)
+            flags[dayflags,:] = True
+            data[flags] = np.nan
+
+        tutu.close()        
         nrows.append(data.shape[0])
 
         for i in range(1,len(inset)):
             if verb:
                 print 'Phazer: reading %s.' % inset[i]
-            dataplus, flagsplus, uvplus, antenna1plus, antenna2plus, antennanamesplus = self.readdata(inset[i], col = col, fields = fields, channels = channels, pol = pol, verb = verb)
+            tutu = self.opensilent(inset[i])
+            dataplus, flagsplus, uvplus, antenna1plus, antenna2plus, antennanamesplus = self.readdata(tutu, col = col, fields = fields, channels = channels, pol = pol, verb = verb)
+            if vampirisms:
+                if verb:
+                    print 'Phazer: applying vampirisms to dataset %s.' % inset[i]
+                dayflags = self.vampirisms(tutu, dryrun = True, avantsoleil = avantsoleil, apresnuit = apresnuit, avantnuit = avantnuit, apresoleil = apresoleil, horizon = horizon, nononsoleil = nononsoleil, flinvert = True, verb = verb)
+                flagsplus[dayflags,:] = True
+                dataplus[flagsplus] = np.nan
+            tutu.close()
             data     = np.concatenate((data,  dataplus ), axis = 0)
             flags    = np.concatenate((flags, flagsplus), axis = 0)
             uv       = np.concatenate((uv,    uvplus   ), axis = 0)
@@ -493,21 +547,36 @@ class Sunblocker:
                 print 'Phazer: This means that only model \'all\' should not be used.'
                 print ''
             nrows.append(data.shape[0])
-        print data.shape
-        sys.exit
+
         if verb:
             print 'Phazer: gridding visibilities (vector sum) and then building'
             print 'Phazer: scalar average of amplitudes along velocity axis.'
         duv = 1./(imsize*cell*np.pi/(3600.*180.)) # UV cell in lambda
         u = uv[:,0]
         v = uv[:,1]
+        
         umin = u.min() # Minimum in u
         vmin = v.min() # Minimum in v
         umax = u.max() # Maximum in u
         vmax = v.max() # Maximum in v
 
+
+        # Now care about uvrange
+        uvflags = (u*0).astype(bool)
+        
+        if uvmax != None:
+            umin = -uvmax
+            umax = uvmax
+            vmin = -uvmax
+            vmax = uvmax
+#            uvflags = u*u+v*v > uvmax*uvmax
+        
+        # Flag everything outside uvrange
+#        uvflags += u*u+v*v < uvmin*uvmin
+#        data[uvflags,:] = np.nan
+            
         if verb:
-            print 'Phazer: approximate minimum u is %.0f and \nPhazer: the maximum u is %.0f vminmax %.1f %.1f.' % (umin,umax,vmin,vmax)
+            print 'Phazer: approximate minimum u is %.0f and \nPhazer: the maximum u is %.0f\nPhazer: approximate minimum v is %.0f and \nPhazer: the maximum v is %.0f' % (umin,umax,vmin,vmax)
         umin, umax = np.floor(umin), np.ceil(umax) # Make sure that all visibilities are included in grid in the next step
         vmin, vmax = np.floor(vmin), np.ceil(vmax) # Make sure that all visibilities are included in grid in the next step
         ugrid=np.arange(umin,umax,duv) # Notice that umax is not necessarily contained in an array like this, hence the step before
@@ -522,7 +591,8 @@ class Sunblocker:
             griddedvis = np.zeros((ugrid.size, vgrid.size),dtype=float)
 
         # For the sake of efficiency create an array that replaces data
-        nmdata = np.ones(data[:,0].size, dtype = float)
+#        nmdata = np.ones(data[:,0].size, dtype = float)
+        nmdata = np.zeros(data[:,0].size, dtype = float)
 
         # Keeping track of central uv coordinates, required for histogram later on
         gruvcoord = np.append(np.copy(nmdata),np.copy(nmdata)).reshape((2,nmdata.shape[0])).transpose()
@@ -541,7 +611,11 @@ class Sunblocker:
 
         for uu in ugrid:
             for vv in vgrid:
-                active_visibs = (u > uu)*(u <= (uu+duv))*(v > vv)*(v <= (vv+duv))
+#                active_visibs = (u > uu)*(u <= (uu+duv))*(v > vv)*(v <= (vv+duv))
+                if uvmax == None:
+                    active_visibs = (u > uu)*(u <= (uu+duv))*(v > vv)*(v <= (vv+duv))*(u*u+v*v>uvmin*uvmin)
+                else:
+                    active_visibs = (u > uu)*(u <= (uu+duv))*(v > vv)*(v <= (vv+duv))*(u*u+v*v<uvmax*uvmax)*(u*u+v*v>uvmin*uvmin)
                 if np.any(active_visibs):
 
                     #gruvcoord[active_visibs,:] = uu, vv # Central pixel coordinate
@@ -553,7 +627,6 @@ class Sunblocker:
                     ###
                     scav = np.nanmean(np.abs(np.nansum(data[active_visibs],axis=0))) # Scalar average of amplitude of vectorial sum of visibilities in cell
                     nmdata[active_visibs] = scav # set all visibilities in that cell to same cell value
-
                     ### The following 4 lines belong to test 3: plot gridded visibs
                     #if k > 100:
                     #    print 'Please find and confirm pixel coordinates and values in the greyscale plot: u: %f v: %f value: %f' % (uu+duv/2, vv+duv/2, scav)
@@ -583,11 +656,11 @@ class Sunblocker:
 
         if show != None:
             if verb:
-                print 'Plotting gridded scalar average of amplitudes along velocity axis.'
-            plt.imshow(np.flip(griddedvis,axis=0).transpose(),vmin=np.nanmin(griddedvis),vmax=np.nanmax(griddedvis),cmap='Greys', origin=('low#er'),interpolation='nearest', extent = [ugrid.max()+duv, ugrid.min(), vgrid.min(), vgrid.max()+duv])
+                print 'Phazer: Plotting gridded scalar average of amplitudes along velocity axis.'
+            plt.imshow(np.flip(griddedvis,axis=0).transpose(),vmin=np.nanmin(griddedvis),vmax=np.nanmax(griddedvis),cmap='Greys', origin=('lower'),interpolation='nearest', extent = [ugrid.max()+duv, ugrid.min(), vgrid.min(), vgrid.max()+duv])
             plt.xlabel('u')
             plt.ylabel('v')
-            if type(show) == str:
+            if type(show) == types.StringType:
                 savefile = os.path.join(showdir, 'griddedvis_'+show)
                 plt.savefig(savefile)
                 plt.close()
@@ -598,8 +671,10 @@ class Sunblocker:
         # Now build the mask, depending on the mode
         if verb:
             print 'Phazer: clipping data based on scalar averaging'
-        flags = np.zeros(data.shape, dtype = bool)
 
+        # The flags are in the data (using nan operations), so we can neglect them here.
+        flags = np.zeros(data.shape, dtype = bool)
+        
         if mode == 'all':
             if verb:
                 print 'Phazer: mode \'all\', filtering all data at once.'
@@ -657,7 +732,7 @@ class Sunblocker:
                         newflags |= self.histoclip(data, passedflags, grucoord, grvcoord, threshmode = threshmode, threshold = threshold, ax = ax, title = title, verb = verb)
                     i = i+1
         if show != None:
-            if type(show) == str:
+            if type(show) ==  types.StringType:
                 plt.savefig(showdir+'/'+'histo_'+show)
                 plt.close()
             else:
@@ -706,17 +781,23 @@ class Sunblocker:
             ax.plot(flaggeduv[:,0], flaggeduv[:,1], '.r', markersize = 0.3)
             if radrange > 0. and angle > 0.:
                 ax.plot(befflaggeduv[:,0], befflaggeduv[:,1], '.g', markersize = 0.3)
-            notflaggeduv = uv[np.column_stack((np.logical_not(newflags),np.logical_not(newflags)))]
+#            print uv[:,0].shape
+#            print newflags.shape
+            selc = np.logical_not(newflags)*(uv[:,0] <= umax)*(uv[:,1] <= vmax)*(uv[:,0] >= umin)*(uv[:,1] >= vmin)
+            notflaggeduv = uv[np.column_stack((selc,selc))]
             notflaggeduv = notflaggeduv.reshape(notflaggeduv.size/2, 2)
+            # Restrict uvrange to maximum of uvmax and befflaggeduv
+            ####
+            
             ax.plot(notflaggeduv[:,0], notflaggeduv[:,1], '.b', markersize = 0.3)
-            if type(show) == str:
+            if type(show) ==  types.StringType:
                 plt.savefig(showdir+'/'+'select_'+show)
                 plt.close()
             else:
                 plt.show()
                 plt.close()
 
-        if type(outset) == str:
+        if type(outset) ==  types.StringType:
             outset = [outset]
 
         if outset == None:
@@ -775,7 +856,7 @@ class Sunblocker:
         """Identifies times in a data set where sun is up or down and provides flags
         
         Input:
-        inset (str)            : Input data set
+        inset (str)            : Input data set or already open pyrap file handle
         lon (astropy angle)    : Longitude of observatory in astropy units (defaults to what is found in the data set)
         lat (astropy angle)    : Latitude of observatory in astropy units (defaults to what is found in the data set)
         hei (astropy length)   : Elevation of observatory in astropy units (defaults to what is found in the data set)
@@ -792,7 +873,7 @@ class Sunblocker:
         Output: binary table with flags
 
         Takes data set inset as input data set and calculates sunrise
-        and -set times, under the assumption of terrestrial longitued
+        and -set times, under the assumption of terrestrial longitude
         lon, latitude lat, elevation hei in astropy units. Then
         creates a binary array with flags (True if flagged), which
         gets returned at the end. The flags are set for times from
@@ -815,7 +896,7 @@ class Sunblocker:
         if verb:
             if dryrun:
                 print 'Vampirisms: this is a dry run. Flags will not be applied.'
-                drypre = 'not'
+                drypre = 'Because of dry run not'
             else:
                 drypre = ''
             if avantsoleil != 0.:
@@ -841,10 +922,13 @@ class Sunblocker:
         # We really don't want to hear about this
         if verb:
             print 'Vampirisms: opening visibility file %s.' % inset
+
+        # This is either a string or a data set, it will return the right thing
         if dryrun:
-            t = self.opensilent(inset)
+            t = self.opensilent(inset = inset)
         else:
-            t= self.opensilent(inset, readonly = False)
+            t= self.opensilent(inset = inset, readonly = False)
+
         antennapos = t.ANTENNA.getcol('POSITION')
         telgeo = np.average(antennapos, axis = 0)*units.meter
 
@@ -990,7 +1074,9 @@ class Sunblocker:
 
         print 'Vampirisms: finis.'
 
-        t.close()
+        if type(t) ==  types.StringType:
+            t.close()
+            
         return flags
 
 #if __name__ == '__main__':
