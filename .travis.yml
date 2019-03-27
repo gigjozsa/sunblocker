@@ -1,0 +1,21 @@
+language: python
+matrix:
+  include:
+  - env: TARGET=py2
+  allow_failures:
+  - env: TARGET=mypy
+sudo: required
+services:
+- docker
+install:
+- true
+script:
+- docker build . -f .travis/${TARGET}.docker
+deploy:
+  provider: pypi
+  user: sphemakh
+  password:
+    secure: qc/mv/dJPgGt68l2u7TPed2l4pDrmiRzNSk3Uw5Xp0alK2gegmxEdtco+Z8J6HkbIxHZj2rOR+yC/J1UW1aGiHckbYVXPZND+z5qVsdzDOVkzgSTcSBJyoo1VWz1w59GQ2MHDXeZhASGSAZQvNQRDbN7UUsZ0yVu3pG+T8xUPiaouvrCyLA03oSwS8IBgj3yFZFR2YBsu86R+aFL6UWQTA2Lv85sMfWULGItAfZ0AP2TVgWHV2P+SxsqTQP7zVTeBBJ/JjOB/HW0mMUwE1TSCyDGRTrdji68yvUgnVqCY24XPRs0B/lgzd+bimITrBbCN2WL+2bt5laTQH1Zx+Dx2qpcqfdoqGQ66frlxctLCbyhpf1YXmg1/Vyb7S36VmwIiz2UU1oyDlnmQNoZ7U0sXFRcB6Mz4Mp5qfh2PYXvawrhEdTPL/VDWvCQ0FmvHpGp8mZ7hCxeV9Bd1Va4Ih599NzsdO+To6ehylrfxXLCTPumAVutH7R/ZkK9ZSMrdECSL2qzgJo/G/zXXh/EF+Zou8xP+JDt3QvyaBH2mFHVedqK6RryDh+kFIW98fMgzc1p2fXbjWzHtBKmSdwv/INTRDlLfe0C+GSiMn8AZUqj/tLP8iaw3VchXCF2IVKwtyqz738GzcckxebtqnI8PXZR1xLUyjZx5qUJOY1kamTyC38=
+  true:
+    tags: true
+    repo: gigjozsa/sunblocker
