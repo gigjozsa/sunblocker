@@ -49,7 +49,7 @@ class Sunblocker:
         """
 
         # This is where we check what is opened
-        if type(inset) != types.StringType:
+        if type(inset) != type(''):
             return inset
         
         old_stdout = sys.stdout
@@ -182,7 +182,7 @@ class Sunblocker:
         # av = np.nanmean(ampar,axis=1)
         npoints = uvgridded[np.isfinite(uvgridded)].size
         if verb:
-            print 'Phazer: grid has %i nonzero points.' %  npoints
+            print('Phazer: grid has {:d} nonzero points.'.format(npoints))
 
         # Find average and standard deviation 
         average = np.nanmean(uvgridded)
@@ -274,17 +274,17 @@ class Sunblocker:
         """
 
         # We really don't want to hear about this
-        if type(inset) ==  types.StringType:
+        if type(inset) ==  type(''):
             t = self.opensilent(inset)
         else:
             t = inset
 
         # Read column (think, axes are by default ordered as time, frequency, polarization) and flags, which should have same dimension
         if verb:
-            print 'Phazer: reading visibilities.'
+            print('Phazer: reading visibilities.')
         data = t.getcol(col)
         if verb:
-            print 'Phazer: reading original flags.'
+            print('Phazer: reading original flags.')
         flags = t.getcol('FLAG')
 
         ### The following two lines belong to test 2
@@ -295,13 +295,13 @@ class Sunblocker:
         # Divide uv coordinates by wavelength, for this use average frequencies in Hz
         # If bandwidth becomes large, we have to come up with something better
         if verb:
-            print 'Phazer: acquiring spectral information.'
+            print('Phazer: acquiring spectral information.')
         avspecchan = np.average(t.SPECTRAL_WINDOW.getcol('CHAN_FREQ'))
         if verb:
-            print 'Phazer: average wavelength is %.3f m.' % (scconstants.c/avspecchan) # This is for testing: should be ~0.21 if local HI
+            print('Phazer: average wavelength is {:.3f} m.'.format(scconstants.c/avspecchan)) # This is for testing: should be ~0.21 if local HI
 
         if verb:
-            print 'Phazer: reading and calculating approximate uv coordinates.'
+            print('Phazer: reading and calculating approximate uv coordinates.')
         uv = t.getcol('UVW')[:,:2]*avspecchan/scconstants.c
 
         # Convert into desired stokes parameters and adjust mask
@@ -311,7 +311,7 @@ class Sunblocker:
         # if polarisation is i, then take either average or single value, flag the rest
         if pol == 'i':
             if verb:
-                print 'Phazer: calculating Stokes I.'
+                print('Phazer: calculating Stokes I.')
 
             # Calculate stokes i, reduce the number of polarizations to one, flag if not at least one pol is available
             with np.errstate(divide='ignore', invalid = 'ignore'):
@@ -319,7 +319,7 @@ class Sunblocker:
             flags = stflags < 1.
         elif pol == 'q':
             if verb:
-                print 'Phazer: calculating Stokes Q.'
+                print('Phazer: calculating Stokes Q.')
 
             # Calculate stokes q, reduce the number of polarizations to one, flag everything if not both pols are available
             with np.errstate(divide='ignore', invalid = 'ignore'):
@@ -336,12 +336,12 @@ class Sunblocker:
         #        flags[:,:,0] = np.logical_not((stflags.astype(bool)))
 
         # Also mask anything not listed in fields
-        if type(fields) != types.NoneType:
+        if not isinstance(fields, type(None)):
             if verb:
-                print 'Selecting specified fields.'
+                print('Selecting specified fields.')
             field = t.getcol('FIELD')
             select = np.zeros(field.shape, dtype = bool)
-            if type(fields) == types.ListType:
+            if isinstance(fields, type([])):
                 for i in fields:
                     select |= field == i
             else:
@@ -352,29 +352,29 @@ class Sunblocker:
         # Flag autocorrelations
         # print t.ANTENNA.getcol('NAME')[0]
         if verb:
-            print 'Phazer: reading antenna information.'
+            print('Phazer: reading antenna information.')
         antenna1 = t.getcol('ANTENNA1')
         antenna2 = t.getcol('ANTENNA2')
 
         if verb:
-            print 'Phazer: de-selecting autocorrelations (if any).'
+            print('Phazer: de-selecting autocorrelations (if any).')
         flags[antenna1 == antenna2] = True
 
         # Select channels and flag everything outside provided channels
-        if type(channels) != types.NoneType:
+        if not isinstance(channels, type(None)):
             if verb:
-                print 'Phazer: selecting specified channels.'
+                print('Phazer: selecting specified channels.')
             flags[:,np.logical_not(channels)] = True
 
         # Select baselines and select everything outside provided baselines
-        if type(baselines) != types.NoneType:
+        if not isinstance(baselines, type(None)):
             if verb:
-                print 'Phazer: selecting specified baselines.'
+                print('Phazer: selecting specified baselines.')
             flags[np.logical_not([i in zip(np.array(baselines)[:,0],np.array(baselines)[:,1]) or i in zip(np.array(baselines)[:,1],np.array(baselines)[:,0]) for i in zip(antenna1, antenna2)])] = True
 
         # Now put all flagged data to nan:
         if verb:
-            print 'Phazer: applying selections to data.'
+            print('Phazer: applying selections to data.')
         data[flags] = np.nan
 
         antennanames = t.ANTENNA.getcol('NAME')
@@ -473,30 +473,30 @@ class Sunblocker:
 
         """
         if verb:
-            print 'Phazer: start.'
+            print('Phazer: start.')
 
         # Open data set as table
         if verb:
-            print 'Phazer: opening input files.'
+            print('Phazer: opening input files.')
 
         if inset == None:
             if verb:
-                print 'Phazer: No input. Stopping.'
-                print 'Phazer: exiting (successfully).'
+                print('Phazer: No input. Stopping.')
+                print('Phazer: exiting (successfully).')
 
-        if type(inset) ==  types.StringType:
+        if type(inset) == type(''):
             inset = [inset]
 
         if verb:
             if len(inset) == 1:
-                print 'Phazer: reading one data set.'
+                print('Phazer: reading one data set.')
             else:
-                print 'Phazer: reading %i data sets.' % len(inset)
+                print('Phazer: reading {:d} data sets.'.format(len(inset)))
 
 
         # Let's do this the primitive way, first read a data set then append everything else
         if verb:
-            print 'Phazer: reading %s.' % inset[0]
+            print('Phazer: reading {:s}.'.format(inset[0]))
 
         nrows=[0,]
         tutu = self.opensilent(inset[0])
@@ -509,9 +509,9 @@ class Sunblocker:
         # Now additionally flag all night visibilities if user wants
         if vampirisms:
             if verb:
-                    print 'Phazer: applying vampirisms to dataset %s.' % inset[0]
+                    print('Phazer: applying vampirisms to dataset {:s}.'.format(inset[0]))
             dayflags = self.vampirisms(tutu, dryrun = True, avantsoleil = avantsoleil, apresnuit = apresnuit, avantnuit = avantnuit, apresoleil = apresoleil, horizon = horizon, nononsoleil = nononsoleil, flinvert = True, verb = verb)
-#            print 'finding out about dayflags:'
+#            print'finding out about dayflags:'
 #            print np.all(dayflags)
             flags[dayflags,:] = True
             data[flags] = np.nan
@@ -521,12 +521,12 @@ class Sunblocker:
 
         for i in range(1,len(inset)):
             if verb:
-                print 'Phazer: reading %s.' % inset[i]
+                print('Phazer: reading {:s}.'.format(inset[i]))
             tutu = self.opensilent(inset[i])
             dataplus, flagsplus, uvplus, antenna1plus, antenna2plus, antennanamesplus = self.readdata(tutu, col = col, fields = fields, channels = channels, pol = pol, verb = verb)
             if vampirisms:
                 if verb:
-                    print 'Phazer: applying vampirisms to dataset %s.' % inset[i]
+                    print('Phazer: applying vampirisms to dataset {:s}.'.format(inset[i]))
                 dayflags = self.vampirisms(tutu, dryrun = True, avantsoleil = avantsoleil, apresnuit = apresnuit, avantnuit = avantnuit, apresoleil = apresoleil, horizon = horizon, nononsoleil = nononsoleil, flinvert = True, verb = verb)
                 flagsplus[dayflags,:] = True
                 dataplus[flagsplus] = np.nan
@@ -541,16 +541,16 @@ class Sunblocker:
             if np.all(antennanames == antennanamesplus):
                 pass
             else:
-                print 'Phazer: !!!WARNING!!!'
-                print 'Phazer: It appears that the antennas in data sets differ.'
-                print 'Phazer: This means that baseline selection (using parameter baselines) should not be used.'
-                print 'Phazer: This means that only model \'all\' should not be used.'
-                print ''
+                print('Phazer: !!!WARNING!!!')
+                print('Phazer: It appears that the antennas in data sets differ.')
+                print('Phazer: This means that baseline selection (using parameter baselines) should not be used.')
+                print('Phazer: This means that only model \'all\' should not be used.')
+                print('')
             nrows.append(data.shape[0])
 
         if verb:
-            print 'Phazer: gridding visibilities (vector sum) and then building'
-            print 'Phazer: scalar average of amplitudes along velocity axis.'
+            print('Phazer: gridding visibilities (vector sum) and then building')
+            print('Phazer: scalar average of amplitudes along velocity axis.')
         duv = 1./(imsize*cell*np.pi/(3600.*180.)) # UV cell in lambda
         u = uv[:,0]
         v = uv[:,1]
@@ -576,7 +576,7 @@ class Sunblocker:
 #        data[uvflags,:] = np.nan
             
         if verb:
-            print 'Phazer: approximate minimum u is %.0f and \nPhazer: the maximum u is %.0f\nPhazer: approximate minimum v is %.0f and \nPhazer: the maximum v is %.0f' % (umin,umax,vmin,vmax)
+            print('Phazer: approximate minimum u is {0:.0f} and \nPhazer: the maximum u is {1:.0f}\nPhazer: approximate minimum v is {2:.0f} and \nPhazer: the maximum v is {3:.0f}'.format(umin,umax,vmin,vmax))
         umin, umax = np.floor(umin), np.ceil(umax) # Make sure that all visibilities are included in grid in the next step
         vmin, vmax = np.floor(vmin), np.ceil(vmax) # Make sure that all visibilities are included in grid in the next step
         ugrid=np.arange(umin,umax,duv) # Notice that umax is not necessarily contained in an array like this, hence the step before
@@ -656,11 +656,11 @@ class Sunblocker:
 
         if show != None:
             if verb:
-                print 'Phazer: Plotting gridded scalar average of amplitudes along velocity axis.'
+                print('Phazer: Plotting gridded scalar average of amplitudes along velocity axis.')
             plt.imshow(np.flip(griddedvis,axis=0).transpose(),vmin=np.nanmin(griddedvis),vmax=np.nanmax(griddedvis),cmap='Greys', origin=('lower'),interpolation='nearest', extent = [ugrid.max()+duv, ugrid.min(), vgrid.min(), vgrid.max()+duv])
             plt.xlabel('u')
             plt.ylabel('v')
-            if type(show) == types.StringType:
+            if isinstance(show, type('')):
                 savefile = os.path.join(showdir, 'griddedvis_'+show)
                 plt.savefig(savefile)
                 plt.close()
@@ -670,14 +670,14 @@ class Sunblocker:
 
         # Now build the mask, depending on the mode
         if verb:
-            print 'Phazer: clipping data based on scalar averaging'
+            print('Phazer: clipping data based on scalar averaging')
 
         # The flags are in the data (using nan operations), so we can neglect them here.
         flags = np.zeros(data.shape, dtype = bool)
         
         if mode == 'all':
             if verb:
-                print 'Phazer: mode \'all\', filtering all data at once.'
+                print('Phazer: mode \'all\', filtering all data at once.')
             if show == None:
                 ax = None
             else:
@@ -688,13 +688,13 @@ class Sunblocker:
             antennas = np.unique(np.append(antenna1, antenna2))
             if mode == 'antenna':
                 if verb:
-                    print 'Phazer, mode \'antenna\', filtering data per antenna.'
+                    print('Phazer, mode \'antenna\', filtering data per antenna.')
                 if show != None:
                     nplotsx = int(np.ceil(np.sqrt(antennas.size)))
                     i = 0
                 for antenna in antennas:
                     if verb:
-                        print 'Phazer: filtering antenna %i: %s' % (antenna, t.ANTENNA.getcol('NAME')[antenna])
+                        print('Phazer: filtering antenna {0:d}: {1:s}'.format(antenna, t.ANTENNA.getcol('NAME')[antenna]))
                     passedflags = np.zeros(data.shape,dtype = bool)
                     select  = antenna1 != antenna
                     select &= antenna2 != antenna
@@ -708,7 +708,7 @@ class Sunblocker:
                     i = i + 1
             else:
                 if verb:
-                    print 'Phazer: mode \'baseline\', filtering data per antenna.'
+                    print('Phazer: mode \'baseline\', filtering data per antenna.')
                 antennas1 = np.unique(antenna1)
                 antennas2 = np.unique(antenna2)
                 pairs = np.unique(np.column_stack((antenna1,antenna2)))
@@ -719,7 +719,7 @@ class Sunblocker:
                 for pair in pairs:
                     if pair[0] != pair[1]:
                         if verb:
-                            print 'Filtering baseline between antenna %i: %s and %i: %s' % (pair[0], antennanames[pair[0]], pair[1], antennanames[pair[1]])
+                            print('Filtering baseline between antenna {0:d}: {1:s} and {2:d}: {3:s}'.format(pair[0], antennanames[pair[0]], pair[1], antennanames[pair[1]]))
                         passedflags = np.zeros(data.shape,dtype = bool)
                         select = antenna1 != pair[0]
                         select &= antenna2 != pair[1]
@@ -732,7 +732,7 @@ class Sunblocker:
                         newflags |= self.histoclip(data, passedflags, grucoord, grvcoord, threshmode = threshmode, threshold = threshold, ax = ax, title = title, verb = verb)
                     i = i+1
         if show != None:
-            if type(show) ==  types.StringType:
+            if isinstance(show, type('')):
                 plt.savefig(showdir+'/'+'histo_'+show)
                 plt.close()
             else:
@@ -745,16 +745,16 @@ class Sunblocker:
         # Extend the new flags, first make a copy of the flags
         if radrange > 0. and angle > 0.:
             if verb:
-                print 'Phazer: extending flags to nearby pixels in the uv-plane using radrange: %.0f and angle: %.0f' % (radrange, angle)
+                print('Phazer: extending flags to nearby pixels in the uv-plane using radrange: {0:.0f} and angle: {1:.0f}'.format(radrange, angle))
             flaggeduv = uv[np.column_stack((newflags,newflags))]
-            flaggeduv = flaggeduv.reshape(flaggeduv.size/2, 2)
+            flaggeduv = flaggeduv.reshape(flaggeduv.size//2, 2)
             befflaggeduv = flaggeduv.copy()
 
             if verb:
-                print 'Phazer: processing %i points.' % (flaggeduv.size/2)
-            for i in range(flaggeduv.size/2):
+                print('Phazer: processing {:d} points.'.format(flaggeduv.size//2))
+            for i in range(flaggeduv.size//2):
                 if i%500 == 0:
-                    print 'Phazer: extended %i points.' % i
+                    print('Phazer: extended {:d} points.'.format(i))
                 thepath = self.wedge_around_centre(flaggeduv[i,:], radrange, angle)
                 newflags[self.selwith_path(thepath, uv)] = True
                 if show != None:
@@ -763,7 +763,7 @@ class Sunblocker:
         # Plot data and flags
         if show != None:
             if verb:
-                print 'Phazer: plotting flagged data positions onto gridded and averaged visibilities.'
+                print('Phazer: plotting flagged data positions onto gridded and averaged visibilities.')
             #ax = plt.imshow(np.flip(griddedvis,axis=0).transpose(),vmin=np.nanmin(griddedvis),vmax=np.nanmax(griddedvis),cmap='Greys', origin=('lower'),interpolation='nearest', extent = [ugrid.max()+duv, ugrid.min(), vgrid.min(), vgrid.max()+duv])
             average = np.nanmean(griddedvis)
             stdev  = np.nanstd(griddedvis)
@@ -777,7 +777,7 @@ class Sunblocker:
             for patch in patches:
                 ax.add_patch(patch)
             flaggeduv = uv[np.column_stack((newflags,newflags))]
-            flaggeduv = flaggeduv.reshape(flaggeduv.size/2, 2)
+            flaggeduv = flaggeduv.reshape(flaggeduv.size//2, 2)
             ax.plot(flaggeduv[:,0], flaggeduv[:,1], '.r', markersize = 0.3)
             if radrange > 0. and angle > 0.:
                 ax.plot(befflaggeduv[:,0], befflaggeduv[:,1], '.g', markersize = 0.3)
@@ -785,19 +785,19 @@ class Sunblocker:
 #            print newflags.shape
             selc = np.logical_not(newflags)*(uv[:,0] <= umax)*(uv[:,1] <= vmax)*(uv[:,0] >= umin)*(uv[:,1] >= vmin)
             notflaggeduv = uv[np.column_stack((selc,selc))]
-            notflaggeduv = notflaggeduv.reshape(notflaggeduv.size/2, 2)
+            notflaggeduv = notflaggeduv.reshape(notflaggeduv.size//2, 2)
             # Restrict uvrange to maximum of uvmax and befflaggeduv
             ####
             
             ax.plot(notflaggeduv[:,0], notflaggeduv[:,1], '.b', markersize = 0.3)
-            if type(show) ==  types.StringType:
+            if isinstance(show, type('')):
                 plt.savefig(showdir+'/'+'select_'+show)
                 plt.close()
             else:
                 plt.show()
                 plt.close()
 
-        if type(outset) ==  types.StringType:
+        if isinstance(outset, type('')):
             outset = [outset]
 
         if outset == None:
@@ -809,14 +809,14 @@ class Sunblocker:
         for i in range(len(outset)):
             if tables.tableexists(outset[i]):
                 if verb:
-                    print 'Phazer: opening data set %s' % outset[i]
+                    print('Phazer: opening data set {:s}'.format(outset[i]))
                 if not dryrun:
                     tout = self.opensilent(outset[i], readonly=False)
                 else:
-                    print 'Phazer: it\'s a simulation (dry run)'
+                    print('Phazer: it\'s a simulation (dry run)')
             else:
                 if verb:
-                    print 'Phazer: data set %s does not exist. Copying it from data set %s' % (outset[i], inset[i])
+                    print('Phazer: data set {0:s} does not exist. Copying it from data set {1:s}'.format(outset[i], inset[i]))
                 if not dryrun:
                     t = self.opensilent(inset[i])
                     tout = t.copy(outset[i])
@@ -825,28 +825,28 @@ class Sunblocker:
                     tout = self.opensilent(outset[i], readonly=False)
                 else:
                     if verb:
-                        print 'Phazer: it\'s a simulation (dry run)'
+                        print('Phazer: it\'s a simulation (dry run)')
 
             # Now apply newflags to the data
             if verb:
-                print 'Phazer: applying new flags.'
+                print('Phazer: applying new flags.')
             if not dryrun:
                 flags =  tout.getcol('FLAG')
                 flags[newflags[nrows[i]:nrows[i+1]],:,:] = True
             else:
                 if verb:
-                    print 'Phazer: it\'s a simulation (dry run)'
+                    print('Phazer: it\'s a simulation (dry run)')
 
             if verb:
-                print 'Phazer: writing flags.'
+                print('Phazer: writing flags.')
             if not dryrun:
                 tout.putcol('FLAG', flags)
                 tout.close()
             else:
                 if verb:
-                    print 'Phazer: it\'s a simulation (dry run).'
+                    print('Phazer: it\'s a simulation (dry run).')
         if verb:
-            print 'Phazer: exiting (successfully).'
+            print('Phazer: exiting (successfully).')
         return
 
     def astropy_to_pyephemtime(self, astropytime):
@@ -891,37 +891,37 @@ class Sunblocker:
 
         """
 
-        print 'Vampirisms: start.'
+        print('Vampirisms: start.')
 
         if verb:
             if dryrun:
-                print 'Vampirisms: this is a dry run. Flags will not be applied.'
+                print('Vampirisms: this is a dry run. Flags will not be applied.')
                 drypre = 'Because of dry run not'
             else:
                 drypre = ''
             if avantsoleil != 0.:
-                print 'Vampirisms: %s flagging starts %s before sunrise.' % (drypre, avantsoleil)
+                print('Vampirisms: {0:s} flagging starts {1:s} before sunrise.'.format(drypre, avantsoleil))
             else:
-                print 'Vampirisms: %s flagging starts at sunrise' % drypre
+                print('Vampirisms: {0:s} flagging starts at sunrise'.format(drypre))
             if not nononsoleil:
                 if apresnuit != 0.:
-                    print 'Vampirisms: %s flagging ends %s after sunrise.' % (drypre, apresnuit)
+                    print('Vampirisms: {0:s} flagging ends {1:s} after sunrise.'.format(drypre, apresnuit))
                 else:
-                    print 'Vampirisms: %s flagging ends at sunrise' % drypre
+                    print('Vampirisms: {:s} flagging ends at sunrise'.format(drypre))
                 if avantnuit != 0.:
-                    print 'Vampirisms: %s flagging starts %s before sunset.' % (drypre, avantnuit)
+                    print('Vampirisms: {0:s} flagging starts {1:s} before sunset.'.format(drypre, avantnuit))
             if apresoleil != 0.:
-                print 'Vampirisms: %s flagging ends %s after sunset.' % (drypre, apresoleil)
+                print('Vampirisms: {0:s} flagging ends {1:s} after sunset.'.format(drypre, apresoleil))
             else:
-                print 'Vampirisms: %s flagging ends at sunset' % drypre
+                print('Vampirisms: {0:s} flagging ends at sunset'.format(drypre))
 
             if horizon != 0.:
-                print 'Vampirisms: we think that the sun has really set (oh how I hate it!) when its centre is %s below the horizon' % (-horizon)
+                print('Vampirisms: we think that the sun has really set (oh how I hate it!) when its centre is {:s} below the horizon'.format(-horizon))
 
                 
         # We really don't want to hear about this
         if verb:
-            print 'Vampirisms: opening visibility file %s.' % inset
+            print('Vampirisms: opening visibility file {:s}.'.format(inset))
 
         # This is either a string or a data set, it will return the right thing
         if dryrun:
@@ -949,11 +949,11 @@ class Sunblocker:
             heie  = hei
         telpos = coordinates.EarthLocation(lon = lone, lat = late, height = heie)
 
-        print 'It appears that the observatory latitude is %s, the longitude %s, and the height %s' % (telpos.geodetic.lon, telpos.geodetic.lat, telpos.geodetic.height)
+        print('It appears that the observatory latitude is {0:s}, the longitude {1:s}, and the height {2:s}'.format(telpos.geodetic.lon, telpos.geodetic.lat, telpos.geodetic.height))
 
         # Read time stamps
         if verb:
-            print 'Vampirisms: reading time stamps.'
+            print('Vampirisms: reading time stamps.')
         dd = t.getcol('TIME')/(24.*3600.)
         times = time.Time(dd, format='mjd', scale='utc')
         obstart = np.amin(times)
@@ -961,8 +961,8 @@ class Sunblocker:
         obsend = np.amax(times)
         eobsend = ephem.Date(self.astropy_to_pyephemtime(obsend))
         if verb:
-            print 'Vampirisms: the observation started at %s (UTC)' % obstart.iso
-            print 'Vampirisms: the observation ended at %s (UTC)' % obsend.iso
+            print('Vampirisms: the observation started at {:s} (UTC)'.format(obstart.iso))
+            print('Vampirisms: the observation ended at {:s} (UTC)'.format(obsend.iso))
 
         etimes = self.astropy_to_pyephemtime(times)
         
@@ -988,15 +988,15 @@ class Sunblocker:
             # From here on, esti is the start of a daylight period during the observation and eeti the end of it
             esti = eobstart
             if verb:
-                print 'Vampirisms: at the beginning of the observation the sun (urgh!) was above the horizon. Not a good time.'
+                print('Vampirisms: at the beginning of the observation the sun (urgh!) was above the horizon. Not a good time.')
         else:
             if verb:
-                print 'Vampirisms: at the beginning of the observation the sun (baah!) was b-lo the horizon. This is our time! Hoahahaha! Ha!'
+                print('Vampirisms: at the beginning of the observation the sun (baah!) was b-lo the horizon. This is our time! Hoahahaha! Ha!')
             esti = etel.next_rising(esun)
             if esti < eobsend:
                 ncross += 1
                 if verb:
-                    print 'Vampirisms: the sun (yuck!) rose at %s (UTC)' % esti
+                    print('Vampirisms: the sun (yuck!) rose at {:s} (UTC)'.format(esti))
 
         flags = np.zeros(dd.size, dtype = bool)
         
@@ -1007,7 +1007,7 @@ class Sunblocker:
             if eeti < eobsend:
                 ncross += 1
                 if verb:
-                    print 'Vampirisms: the sun (hrgh!) set at %s (UTC), time to rise, Ha! HA, HAHA!' % eeti
+                    print('Vampirisms: the sun (hrgh!) set at {:s} (UTC), time to rise, Ha! HA, HAHA!'.format(eeti))
 
             if nononsoleil:                
                 # Only one bracket, add times
@@ -1016,7 +1016,7 @@ class Sunblocker:
                 if verb:
                     estihad = max(estiapp, eobstart)
                     eetihad = min(eetiapp, eobsend)
-                    print 'Vampirisms: %s flagging between %s (UTC) and %s (UTC).' % (drypre, ephem.Date(estihad), ephem.Date(eetihad))
+                    print('Vampirisms: {0:s} flagging between {1:s} (UTC) and {2:s} (UTC).'.format(drypre, ephem.Date(estihad), ephem.Date(eetihad)))
                 flags = flags+(etimes >= float(estiapp)) * (float(eetiapp) >= etimes)
             else:
                 # Two brackets, add times
@@ -1027,9 +1027,9 @@ class Sunblocker:
                 if verb:
                     estihad = max(estiapp, eobstart)
                     eetihad = min(eetiapp2, eobsend)
-                    print 'Vampirisms: %s flagging between %s (UTC) and %s (UTC) and' % (drypre, ephem.Date(estihad), ephem.Date(eetiapp))
+                    print('Vampirisms: {0:s} flagging between {1:s} (UTC) and {2:s} (UTC) and'.format(drypre, ephem.Date(estihad), ephem.Date(eetiapp)))
                     if estiapp2 < eobsend:
-                        print 'Vampirisms: %s flagging between %s (UTC) and %s (UTC).' % (drypre, ephem.Date(estiapp2), ephem.Date(eetihad))
+                        print('Vampirisms: {0:s} flagging between {1:s} (UTC) and {2:s} (UTC).'.format(drypre, ephem.Date(estiapp2), ephem.Date(eetihad)))
                 flags = flags+(etimes >= float(estiapp)) * (float(eetiapp) >= etimes)
                 flags = flags+(etimes >= float(estiapp2)) * (float(eetiapp2) >= etimes)
 
@@ -1039,42 +1039,42 @@ class Sunblocker:
             if esti < eobsend:
                 ncross += 1
                 if verb:
-                    print 'Vampirisms: the sun (aargh!) rose at %s' % esti
+                    print('Vampirisms: the sun (aargh!) rose at {:s}'.format(esti))
 
         if verb:
             addendum  = ''
             if ncross > 1:
-                print 'Vampirisms: the sun crossed the horizon %i times during the observation' % ncross
+                print('Vampirisms: the sun crossed the horizon {:d} times during the observation'.format(ncross))
             else:
                 if ncross > 0:
-                    print 'Vampirisms: the sun (yargl!) crossed the horizon once during the observation'
+                    print('Vampirisms: the sun (yargl!) crossed the horizon once during the observation')
                 else:
-                    print 'Vampirisms: the sun (woe!) never crossed the horizon during the observation'
+                    print('Vampirisms: the sun (woe!) never crossed the horizon during the observation')
                     addendum = 'still '
                     
                     
             if esti > eeti:
-                print 'Vampirisms: at the end of the observation the sun (Uuuh!) was %s up.' % addendum
+                print('Vampirisms: at the end of the observation the sun (Uuuh!) was {:s} up.'.format(addendum))
             else:
-                print 'Vampirisms: at the end of the observation it was %s a beautiful night.' % addendum
+                print('Vampirisms: at the end of the observation it was {:s} a beautiful night.'.format(addendum))
                 
         # Invert flags
         if flinvert:
             if verb:
-                print 'Vampirisms: inverting flags, that means %s flag everything in the night (terrible)!' % drypre
+                print('Vampirisms: inverting flags, that means {:s} flag everything in the night (terrible)!'.format(drypre))
             flags = np.logical_not(flags)
         
         # Now apply flags
         if verb:
-            print 'Vampirisms: %s applying flags to data.' % drypre
+            print('Vampirisms: {:s} applying flags to data.'.format(drypre))
         if not dryrun:
             oflags = t.getcol('FLAG')
             oflags[flags,:,:] = True
             t.putcol('FLAG', oflags)
 
-        print 'Vampirisms: finis.'
+        print('Vampirisms: finis.')
 
-        if type(t) ==  types.StringType:
+        if isinstance(t, type('')):
             t.close()
             
         return flags
