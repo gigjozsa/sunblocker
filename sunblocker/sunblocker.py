@@ -390,10 +390,10 @@ class Sunblocker:
         """Flag Measurement Set based on scalarly averaged data
 
         Input:
-        inset (str)            : Input data set
-        outset (str)           : Name of output data set or None, in which case outset = inset
-        col (str)              : Column name to base flagging on (e.g. 'DATA' or 'CORRECTED')
-        channels (array)       : dtype = bool array with True for channels to base the analysis on "False" channels will be ignored
+        inset (str or list of str)        : Input data set(s)
+        outset (None, str, or list of str): Name of output data set or None, in which case outset = inset, in case of a list, must have the same length as inset
+        col (str)                         : Column name to base flagging on (e.g. 'DATA' or 'CORRECTED')
+        channels (array)                  : dtype = bool array with True for channels to base the analysis on "False" channels will be ignored
         baselines (array)      : nx2 array with antenna pairs for baselines to base the analysis on
         fields (int)           : Fields to select or None if all fields should be used
         imsize (int)           : Size of image in pixels
@@ -413,7 +413,7 @@ class Sunblocker:
         horizon (astropy angle): Height above horizon of the sun to define sunset in astropy units (defaults to -34 arcmin)
         nononsoleil (bool)     : Apply only on time windows around sunrise and sunset or on all day time data (if True, which is the default)
         uvmin (float)          : Restrict analysis to visibilities with a baseline b with uvmax > b > uvmin 
-        uvmin (float)          : Restrict analysis to visibilities with a baseline b with uvmax > b > uvmin 
+        uvmax (float)          : Restrict analysis to visibilities with a baseline b with uvmax > b > uvmin 
         horizon (astropy angle): Height above horizon of the sun to define sunset in astropy units (defaults to -34 arcmin)
         show (bool)            : Show histogram and cutoff line in a viewgraph
         showdir (str)          : Directory to put viewgraphs in
@@ -427,14 +427,16 @@ class Sunblocker:
         the visibilities according to the corresponding image
         dimensions, where imsize is the size of the image in pixels
         and cell is the size of the cell in arcsec ( uv cell in lambda
-        is 1./(imsize*cell*np.pi/(3600.*180.)) ). In this process the
+        is 1./(imsize*cell*np.pi/(3600.*180.)), and the size in lambda
+        is 1./(cell*np.pi/(3600.*180.)), such that uvmax can be chosen
+        to be 1./(2*cell*np.pi/(3600.*180.)) ). In this process the
         assumed frequency to express uv coordinates in units of
         wavelength is the average frequency in the data set. Notice
         that this is not precise for a large bandwith. The
         visibilities are converted to Stokes parameters according to
         the parameter 'pol', then vectorially gridded onto the
         calculated grid, then the absolutes are calculated
-        (alternatively the PHAses are set to ZERo) and then the
+        (alternatively: the PHAses are set to ZERo) and then the
         visibilities are averaged along the frequency axis. Then from
         this data product, some visibilities are flagged using a
         clipping technique. This can be done using all baselines in
@@ -620,7 +622,7 @@ class Sunblocker:
 
                     #gruvcoord[active_visibs,:] = uu, vv # Central pixel coordinate
                     # Central pixel becomes important when doing wedges
-                    gruvcoord[active_visibs,:] = uu+duv/2., vv+duv/2 # Central pixel coordinate
+                    gruvcoord[active_visibs,:] = uu+duv/2., vv+duv/2. # Central pixel coordinate
 
                     ### The following line belongs to test 1
                     #testdata[active_visibs] = True
