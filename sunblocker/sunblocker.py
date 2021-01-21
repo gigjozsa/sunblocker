@@ -30,6 +30,7 @@ import astropy.units as units
 import astropy.time as time
 import astropy.coordinates as coordinates
 import ephem
+from scipy import stats
 
 
 class Sunblocker:
@@ -126,18 +127,19 @@ class Sunblocker:
         boolarray = path.contains_points(points)
         return boolarray
 
-    def histoclip(self, data, mask, gruvcoord, threshmode = 'fit', threshold = 5., ax = None, title = '', verb = True):
+    def histoclip(self, data, mask, gruvcoord, unflags = None, threshmode = 'fit', threshold = 5., ax = None, title = '', verb = True):
         """Measure sigma and return a mask indicating data at a distance larger than threshold times sigma from the average 
 
         Input:
-        data (ndarray, type = float): Input data, one dimension
-        mask (ndarray, type = bool) : Mask indicating data points to ignore, same shape as data
+        data (ndarray, type = float)   : Input data, one dimension
+        mask (ndarray, type = bool)    : Mask indicating data points to ignore for evaluation, same shape as data
+        unflags (ndarray, type = bool) : Mask indicating data points not to flag
         gruvcoord (nx2 ndarray, type = float): Array of the same size of data x 2 denoting grid positions of the data
-        threshmode (string)         : Method to determine sigma, 'fit': fit Gaussian at the max to determine sigma, 'fixed': threshold is in absolute units (sigma is 1.), otherwise standard deviation 
-        threshold (float)           : Distance from average beyond which data are flagged in units of sigma
-        show (bool)                 : Show histogram to monitor what is happening
-        title (string)              : title of histogram
-        verb (bool)                 : show info during processing?
+        threshmode (string)            : Method to determine sigma, 'fit': fit Gaussian at the max to determine sigma, 'fixed': threshold is in absolute units (sigma is 1.), 'mad': use MAD statistics to derive standard deviation, otherwise standard deviation 
+        threshold (float)              : Distance from average beyond which data are flagged in units of sigma
+        show (bool)                    : Show histogram to monitor what is happening
+        title (string)                 : title of histogram
+        verb (bool)                    : show info during processing?
 
         Output:
         histoclip (ndarray, type = bool): Mask indicating points with a distance of larger than threshold*sigma from average (or peak position)
@@ -147,7 +149,7 @@ class Sunblocker:
         deviation (rms) of all points in data whose indices are not
         flagged as True in mask. If mode == 'fit' create a histogram and
         attempt to fit a Gaussian, replacing the rms with the fitted
-        dispersion and the average with the centre of the Gaussian. Then
+        dispersion and the average with the centre of the Gaussian. If mode == 'mad', use MAD statistics to use the median instead of the mean, and a sigma using mad statistics. Then
         create an output mask histoclip, flagging all indices of data
         points in data, which have a positive offset by more than
         threshold times the sigma (rms or fitted dispersion) from the mean
@@ -155,11 +157,13 @@ class Sunblocker:
         absolute number if threshmode == 'fixed', the fitted sigma if
         threshmode == 'fitted', the standard deviation otherwise. Mean in
         this context means 0 if threshmode == 'fixed', the fitted centre
-        if threshmode == 'fitted', the average otherwise.
+        if threshmode == 'fitted', the average otherwise. Unflags is a boolean list indicating indices for which the flags are subsequently removed (hereby excluding data points from a mask).
 
         """
         # Copy data
         av = np.copy(data)
+        
+        # This does not help
         # av[mask==True] = np.nan
 
         # Make a grid
@@ -167,7 +171,7 @@ class Sunblocker:
         vgrid = np.unique(gruvcoord[:,1])
 
         # Do this again. We really want a histogram only with values related to the unflagged visibilities
-        uvgridded = np.zeros((ugrid.size*vgrid.size), dtype = float)
+        uvgridded = np.zeros((ugrid.size*vgrid.size), dtype = float)+np.nan
         i = 0
         for uu in ugrid:
             for vv in vgrid:
@@ -183,19 +187,28 @@ class Sunblocker:
         npoints = uvgridded[np.isfinite(uvgridded)].size
         if verb:
             print('Phazer: grid has {:d} nonzero points.'.format(npoints))
-
+        if npoints < 3:
+            print('Phazer: This is not sufficient for any statistics, returning no flags.')
+            return np.zeros(av.shape, dtype = bool)
+        
         # Find average and standard deviation 
         average = np.nanmean(uvgridded)
         stdev  = np.nanstd(uvgridded)
 
-    #    print 'average: %f, stdev: %f' % (average, stdev)
+        print('average: {}, stdev: {}'.format(average, stdev))
 
         if average == np.nan:
-            return
+            print('Phazer: cannot calculate average, returing no flags')
+            return np.zeros(av.shape, dtype = bool)
+        
         if stdev == np.nan:
-            return
+            print('Phazer: cannot calculate standard deviation, returing no flags')
+            return np.zeros(av.shape, dtype = bool)
 
-        if threshmode == 'fit' or show != None:
+        med = np.nanmedian(uvgridded)
+        mad = stats.median_abs_deviation(uvgridded, scale='normal', nan_policy='omit')
+        
+        if threshmode == 'fit' or ax != None:
             # Build a histogram
             hist, bin_edges = np.histogram(uvgridded[np.isfinite(uvgridded)], bins=int(np.sqrt(npoints))+1)
             bin_centers = bin_edges[:-1] + 0.5 * (bin_edges[1:] - bin_edges[:-1])
@@ -217,13 +230,18 @@ class Sunblocker:
         if threshmode == 'std':
             std = stdev
             ave = average
+        if threshmode == 'mad':
+            std = mad
+            ave = med
         if threshmode == 'fit':
             std = popt[2]
             ave = popt[0]
 
         # Build a new mask based on the statistics and return it
-    #    select = av <= average-threshold*stdev
-        select = av >= ave+threshold*std
+        #    select = av <= average-threshold*stdev
+        select = (av >= ave+threshold*std)
+        if not isinstance(unflags, type(None)):
+            select = select * np.logical_not(unflags)
 
         # Plot histogram and Gaussians
         if ax != None:
@@ -231,12 +249,16 @@ class Sunblocker:
             showgouse = np.linspace(1.5*bin_centers[0]-0.5*bin_centers[1], 1.5*bin_centers[-1]-0.5*bin_centers[-2], 200)
             calculated = self.gaussian(showgouse, average, widthes[0]*npoints/(np.sqrt(2*np.pi)*stdev), stdev)
 
+            # mad
+            madded = self.gaussian(showgouse, med, widthes[0]*npoints/(np.sqrt(2*np.pi)*mad), mad)
+            
             # In case of using only stats, this is right on top
             fitted = self.gaussian(showgouse, popt[0], popt[1], popt[2])
 
             ax.bar(bin_centers, hist, width=widthes, color = 'y', edgecolor = 'y')
             ax.plot(showgouse, calculated, 'g-')
             ax.plot(showgouse, fitted, 'r-')
+            ax.plot(showgouse, madded, 'b-')
             ax.axvline(x = average-threshold*stdev, linewidth=2, color='k')
             ax.axvline(x = average+threshold*stdev, linewidth=2, color='k')
             ax.set_xlim(min(bin_edges), max(bin_edges))
@@ -380,13 +402,13 @@ class Sunblocker:
         antennanames = t.ANTENNA.getcol('NAME')
         
         # Close only if this has been a string
-        if type(inset) == 'str':
+        if isinstance(inset, type('')):
             t.close()
 
         return data, flags, uv, antenna1, antenna2, antennanames
 
 
-    def phazer(self, inset = None, outset = None, col = 'DATA', channels = None, baselines = None, fields = None, imsize = 512, cell = 4, mode = 'all', pol = 'parallel', threshmode = 'fit', threshold = 5., radrange = 0., angle = 0., vampirisms = False, avantsoleil = 0.*units.s, apresnuit = 0.*units.s, avantnuit = 0.*units.s, apresoleil = 0.*units.s, horizon = -34.*units.arcmin, nononsoleil = True, uvmin = 0., uvmax = None, show = None, showdir = '.', dryrun = True, verb = False):
+    def phazer(self, inset = None, outset = None, col = 'DATA', channels = None, baselines = None, fields = None, imsize = 512, cell = 4, mode = 'all', pol = 'parallel', threshmode = 'fit', threshold = 5., radrange = 0., angle = 0., flagonlyday = False, vampirisms = False, avantsoleil = 0.*units.s, apresnuit = 0.*units.s, avantnuit = 0.*units.s, apresoleil = 0.*units.s, horizon = -34.*units.arcmin, nononsoleil = True, uvmin = 0., uvmax = None, show = None, showdir = '.', dryrun = True, verb = False):
         """Flag Measurement Set based on scalarly averaged data
 
         Input:
@@ -404,8 +426,7 @@ class Sunblocker:
         threshold (float)      : Distance from average beyond which data are flagged in units of sigma
         radrange (float)       : Each selected point is expanded in a wedge with this radial range
         angle (float)          : Each selected point is expanded in a wedge with this angular
-
-        vampirisms (bool)      : Apply only on daytime data
+        vampirisms (bool)      : Evaluate only daytime data
         avantsoleil (float)    : Time to be evaluated before sunrise in astropy units (defaults to 30 minutes)
         apresnuit   (float)    : Time to be evaluated after sunrise in astropy units (defaults to 60 minutes)
         avantnuit   (float)    : Time to be evaluated before sunset in astropy units (defaults to 60 minutes)
@@ -414,6 +435,7 @@ class Sunblocker:
         nononsoleil (bool)     : Apply only on time windows around sunrise and sunset or on all day time data (if True, which is the default)
         uvmin (float)          : Restrict analysis to visibilities with a baseline b with uvmax > b > uvmin 
         uvmax (float)          : Restrict analysis to visibilities with a baseline b with uvmax > b > uvmin 
+        flagonlyday (bool)     : Flag only data taken at "day" time, as defined by avantsoleil, apresnuit, avantnuit, apresoleil, nononsoleil
         horizon (astropy angle): Height above horizon of the sun to define sunset in astropy units (defaults to -34 arcmin)
         show (bool)            : Show histogram and cutoff line in a viewgraph
         showdir (str)          : Directory to put viewgraphs in
@@ -444,34 +466,35 @@ class Sunblocker:
         all baselines (repeated per baseline). For these data average
         and standard deviation (rms) of all points in data are
         calculated whose indices are not flagged as True in mask. If
-        mode == 'fit' a histogram is created and attempt to fit a
-        Gaussian, replacing the rms with the fitted dispersion and the
-        average with the centre of the Gaussian. Then all data with a
-        positive distance of greater than threshold times sigma
-        (either fitted or standard deviation) from the mean (or
-        position of fitted Gaussian) are flagged (lipped). If mode ==
-        'absolute', all data above the absolute value given in
-        threshold are clipped instead. Each such flagged data point
-        can be extended by a wedge, inside which all data points are
-        flagged.  The radial range of the wedge is the radius of the
-        point (distance from origin) plus and minus half of radrange,
-        the angular range is given by the direction of the centre
-        (position angle with respect to the centre) plus and minus
-        angle/2.  Finally the flags are expanded in the polarisation
-        and frequency direction and applied to the output data, which
-        have to have the dimension of the input data. If the output
-        data are of None type, it is assumed that the flags should be
-        applied to the input data. If the output data have a name,
-        then they are copies of the input data sets if they do not
-        exist, otherwise the flags will be applied to the output data
-        sets instead of the input data sets. If show is set to None,
-        no plots will be produced. If show is a string type, hardcopy
-        output plots (hist_$show and select_$show) will be produced,
-        one showing the histograms, two Gaussians (red: fitted, green:
-        according to mean and standard deviation), and the threshold
-        position, and the other the uv coverage with the gridded
-        values and the flagged data (red) and flagged data before
-        wedge expansion (green).
+        mode == 'mad', median and standard deviation calculated from
+        mad statistics are used. If mode == 'fit' a histogram is
+        created and attempt to fit a Gaussian, replacing the rms with
+        the fitted dispersion and the average with the centre of the
+        Gaussian. Then all data with a positive distance of greater
+        than threshold times sigma (either fitted or standard
+        deviation) from the mean (or position of fitted Gaussian) are
+        flagged (lipped). If mode == 'absolute', all data above the
+        absolute value given in threshold are clipped instead. Each
+        such flagged data point can be extended by a wedge, inside
+        which all data points are flagged.  The radial range of the
+        wedge is the radius of the point (distance from origin) plus
+        and minus half of radrange, the angular range is given by the
+        direction of the centre (position angle with respect to the
+        centre) plus and minus angle/2.  Finally the flags are
+        expanded in the polarisation and frequency direction and
+        applied to the output data, which have to have the dimension
+        of the input data. If the output data are of None type, it is
+        assumed that the flags should be applied to the input data. If
+        the output data have a name, then they are copies of the input
+        data sets if they do not exist, otherwise the flags will be
+        applied to the output data sets instead of the input data
+        sets. If show is set to None, no plots will be produced. If
+        show is a string type, hardcopy output plots (hist_$show and
+        select_$show) will be produced, one showing the histograms,
+        two Gaussians (red: fitted, green: according to mean and
+        standard deviation), and the threshold position, and the other
+        the uv coverage with the gridded values and the flagged data
+        (red) and flagged data before wedge expansion (green).
 
         """
         if verb:
@@ -504,15 +527,19 @@ class Sunblocker:
         tutu = self.opensilent(inset[0])
         data, flags, uv, antenna1, antenna2, antennanames = self.readdata(tutu, col = col, fields = fields, channels = channels, baselines = baselines, pol = pol, verb = verb)
 
-#        print 'flags shape', flags.shape
-#        print 'data shape', data.shape
-#        print 'any?', np.any(flags)
+        #        print 'flags shape', flags.shape
+        #        print 'data shape', data.shape
+        #        print 'any?', np.any(flags)
+        
+        # This is a list where all visibilities taken by night are set to True, False otherwise)
+        if vampirisms or flagonlyday:
+            dayflags = self.vampirisms(tutu, dryrun = True, avantsoleil = avantsoleil, apresnuit = apresnuit, avantnuit = avantnuit, apresoleil = apresoleil, horizon = horizon, nononsoleil = nononsoleil, flinvert = True, verb = verb)
         
         # Now additionally flag all night visibilities if user wants
         if vampirisms:
             if verb:
-                    print('Phazer: applying vampirisms to dataset {:s}.'.format(inset[0]))
-            dayflags = self.vampirisms(tutu, dryrun = True, avantsoleil = avantsoleil, apresnuit = apresnuit, avantnuit = avantnuit, apresoleil = apresoleil, horizon = horizon, nononsoleil = nononsoleil, flinvert = True, verb = verb)
+                print('Phazer: applying vampirisms to dataset {:s}.'.format(inset[0]))
+
 #            print'finding out about dayflags:'
 #            print np.all(dayflags)
             flags[dayflags,:] = True
@@ -526,15 +553,22 @@ class Sunblocker:
                 print('Phazer: reading {:s}.'.format(inset[i]))
             tutu = self.opensilent(inset[i])
             dataplus, flagsplus, uvplus, antenna1plus, antenna2plus, antennanamesplus = self.readdata(tutu, col = col, fields = fields, channels = channels, pol = pol, verb = verb)
+            if vampirisms or flagonlyday:
+                dayflagsplus = self.vampirisms(tutu, dryrun = True, avantsoleil = avantsoleil, apresnuit = apresnuit, avantnuit = avantnuit, apresoleil = apresoleil, horizon = horizon, nononsoleil = nononsoleil, flinvert = True, verb = verb)
+            
             if vampirisms:
                 if verb:
                     print('Phazer: applying vampirisms to dataset {:s}.'.format(inset[i]))
-                dayflags = self.vampirisms(tutu, dryrun = True, avantsoleil = avantsoleil, apresnuit = apresnuit, avantnuit = avantnuit, apresoleil = apresoleil, horizon = horizon, nononsoleil = nononsoleil, flinvert = True, verb = verb)
-                flagsplus[dayflags,:] = True
+                # This flags all visibilities taken by night (sets those visibs to True)
+
+                flagsplus[dayflagsplus,:] = True
                 dataplus[flagsplus] = np.nan
             tutu.close()
+            
             data     = np.concatenate((data,  dataplus ), axis = 0)
             flags    = np.concatenate((flags, flagsplus), axis = 0)
+            if vampirisms or flagonlyday:
+                dayflags = np.concatenate((dayflags, dayflagsplus), axis = 0)
             uv       = np.concatenate((uv,    uvplus   ), axis = 0)
             antenna1 = np.concatenate((antenna1, antenna1plus), axis = 0)
             antenna2 = np.concatenate((antenna2, antenna2plus), axis = 0)
@@ -546,7 +580,7 @@ class Sunblocker:
                 print('Phazer: !!!WARNING!!!')
                 print('Phazer: It appears that the antennas in data sets differ.')
                 print('Phazer: This means that baseline selection (using parameter baselines) should not be used.')
-                print('Phazer: This means that only model \'all\' should not be used.')
+                print('Phazer: This means that only model \'all\' should be used.')
                 print('')
             nrows.append(data.shape[0])
 
@@ -563,8 +597,8 @@ class Sunblocker:
         vmax = v.max() # Maximum in v
 
 
-        # Now care about uvrange
-        uvflags = (u*0).astype(bool)
+        # Now care about uvrange. Caution! This is a dead statement!!!
+        # uvflags = (u*0).astype(bool)
         
         if uvmax != None:
             umin = -uvmax
@@ -594,6 +628,7 @@ class Sunblocker:
 
         # For the sake of efficiency create an array that replaces data
 #        nmdata = np.ones(data[:,0].size, dtype = float)
+
         nmdata = np.zeros(data[:,0].size, dtype = float)
 
         # Keeping track of central uv coordinates, required for histogram later on
@@ -611,6 +646,7 @@ class Sunblocker:
         k = 0
         ###
 
+        collaflags = np.all(flags, axis=1)
         for uu in ugrid:
             for vv in vgrid:
 #                active_visibs = (u > uu)*(u <= (uu+duv))*(v > vv)*(v <= (vv+duv))
@@ -618,6 +654,8 @@ class Sunblocker:
                     active_visibs = (u > uu)*(u <= (uu+duv))*(v > vv)*(v <= (vv+duv))*(u*u+v*v>uvmin*uvmin)
                 else:
                     active_visibs = (u > uu)*(u <= (uu+duv))*(v > vv)*(v <= (vv+duv))*(u*u+v*v<uvmax*uvmax)*(u*u+v*v>uvmin*uvmin)
+
+                active_visibs[collaflags] = False
                 if np.any(active_visibs):
 
                     #gruvcoord[active_visibs,:] = uu, vv # Central pixel coordinate
@@ -639,7 +677,7 @@ class Sunblocker:
                     if show != None:
                         griddedvis[ugrid == uu, vgrid == vv] = scav # For plotting
 
-        # Scalar average in frequency
+        # This is the scalar average in frequency
         data = nmdata
 
         ### The following two lines belong to test 2
@@ -676,6 +714,10 @@ class Sunblocker:
 
         # The flags are in the data (using nan operations), so we can neglect them here.
         flags = np.zeros(data.shape, dtype = bool)
+        if flagonlyday:
+            unflags = dayflags
+        else:
+            unflags = None
         
         if mode == 'all':
             if verb:
@@ -684,7 +726,7 @@ class Sunblocker:
                 ax = None
             else:
                 ax = plt.subplot(1,1,1)
-            newflags = self.histoclip(data, flags, gruvcoord, threshmode = threshmode, threshold = threshold, ax = ax, verb = verb)
+            newflags = self.histoclip(data, flags, gruvcoord, unflags = unflags, threshmode = threshmode, threshold = threshold, ax = ax, verb = verb)
         else:
             newflags = np.zeros(data.shape, dtype = bool)
             antennas = np.unique(np.append(antenna1, antenna2))
@@ -706,7 +748,7 @@ class Sunblocker:
                         ax = plt.subplot(nplotsx,nplotsx, i)
                     else:
                         ax = None
-                    newflags |= self.histoclip(data, passedflags, gruvcoord, threshmode = threshmode, threshold = threshold, ax = ax, title = title, verb = verb)
+                    newflags |= self.histoclip(data, passedflags, gruvcoord, unflags = unflags, threshmode = threshmode, threshold = threshold, ax = ax, title = title, verb = verb)
                     i = i + 1
             else:
                 if verb:
@@ -731,7 +773,7 @@ class Sunblocker:
                             ax = plt.subplot(nplotsx,nplotsy,i)
                         else:
                             ax = None
-                        newflags |= self.histoclip(data, passedflags, grucoord, grvcoord, threshmode = threshmode, threshold = threshold, ax = ax, title = title, verb = verb)
+                        newflags |= self.histoclip(data, passedflags, grucoord, grvcoord, unflags=unflags, threshmode = threshmode, threshold = threshold, ax = ax, title = title, verb = verb)
                     i = i+1
         if show != None:
             if isinstance(show, type('')):
@@ -758,7 +800,10 @@ class Sunblocker:
                 if i%500 == 0:
                     print('Phazer: extended {:d} points.'.format(i))
                 thepath = self.wedge_around_centre(flaggeduv[i,:], radrange, angle)
-                newflags[self.selwith_path(thepath, uv)] = True
+                if flagonlyday:
+                    newflags[self.selwith_path(thepath, uv)*unflags] = True
+                else:
+                    newflags[self.selwith_path(thepath, uv)] = True
                 if show != None:
                     patches.append(PathPatch(thepath, facecolor='orange', lw=0, alpha = 0.1))
 
@@ -780,9 +825,6 @@ class Sunblocker:
                 ax.add_patch(patch)
             flaggeduv = uv[np.column_stack((newflags,newflags))]
             flaggeduv = flaggeduv.reshape(flaggeduv.size//2, 2)
-            ax.plot(flaggeduv[:,0], flaggeduv[:,1], '.r', markersize = 0.3)
-            if radrange > 0. and angle > 0.:
-                ax.plot(befflaggeduv[:,0], befflaggeduv[:,1], '.g', markersize = 0.3)
 #            print uv[:,0].shape
 #            print newflags.shape
             selc = np.logical_not(newflags)*(uv[:,0] <= umax)*(uv[:,1] <= vmax)*(uv[:,0] >= umin)*(uv[:,1] >= vmin)
@@ -792,6 +834,9 @@ class Sunblocker:
             ####
             
             ax.plot(notflaggeduv[:,0], notflaggeduv[:,1], '.b', markersize = 0.3)
+            ax.plot(flaggeduv[:,0], flaggeduv[:,1], '.r', markersize = 0.3)
+            if radrange > 0. and angle > 0.:
+                ax.plot(befflaggeduv[:,0], befflaggeduv[:,1], '.g', markersize = 0.3)
             if isinstance(show, type('')):
                 plt.savefig(showdir+'/'+'select_'+show)
                 plt.close()
@@ -923,7 +968,10 @@ class Sunblocker:
                 
         # We really don't want to hear about this
         if verb:
-            print('Vampirisms: opening visibility file {:s}.'.format(inset))
+            if isinstance(inset, type('')):
+                print('Vampirisms: opening visibility file {:s}.'.format(inset))
+            else:
+                print('Vampirisms: opening visibility file {:s}.'.format(inset.name()))
 
         # This is either a string or a data set, it will return the right thing
         if dryrun:
@@ -958,9 +1006,13 @@ class Sunblocker:
             print('Vampirisms: reading time stamps.')
         dd = t.getcol('TIME')/(24.*3600.)
         times = time.Time(dd, format='mjd', scale='utc')
-        obstart = np.amin(times)
+        mindd = np.amin(dd)-t.getcol('INTERVAL')[0]/(2.*24.*3600.)
+        obstart = time.Time(mindd, format='mjd', scale='utc')
+        #obstart = np.amin(times)
         eobstart = ephem.Date(self.astropy_to_pyephemtime(obstart))
-        obsend = np.amax(times)
+        maxdd = np.amax(dd)+t.getcol('INTERVAL')[-1]/(2.*24.*3600.)
+        obsend = time.Time(maxdd, format='mjd', scale='utc')
+        #obsend = np.amax(times)
         eobsend = ephem.Date(self.astropy_to_pyephemtime(obsend))
         if verb:
             print('Vampirisms: the observation started at {:s} (UTC)'.format(obstart.iso))
@@ -998,7 +1050,7 @@ class Sunblocker:
             if esti < eobsend:
                 ncross += 1
                 if verb:
-                    print('Vampirisms: the sun (yuck!) rose at {:s} (UTC)'.format(esti))
+                    print('Vampirisms: the sun (yuck!) rose at {:s} (UTC)'.format(esti.datetime().strftime('%Y-%m-%d, %H:%M:%S')))
 
         flags = np.zeros(dd.size, dtype = bool)
         
@@ -1009,7 +1061,7 @@ class Sunblocker:
             if eeti < eobsend:
                 ncross += 1
                 if verb:
-                    print('Vampirisms: the sun (hrgh!) set at {:s} (UTC), time to rise, Ha! HA, HAHA!'.format(eeti))
+                   print('Vampirisms: the sun (hrgh!) set at {:s} (UTC), time to rise, Ha! HA, HAHA!'.format(eeti.datetime().strftime('%Y-%m-%d, %H:%M:%S')))
 
             if nononsoleil:                
                 # Only one bracket, add times
@@ -1018,7 +1070,7 @@ class Sunblocker:
                 if verb:
                     estihad = max(estiapp, eobstart)
                     eetihad = min(eetiapp, eobsend)
-                    print('Vampirisms: {0:s} flagging between {1:s} (UTC) and {2:s} (UTC).'.format(drypre, ephem.Date(estihad), ephem.Date(eetihad)))
+                    print('Vampirisms: {0:s} flagging between {1:s} (UTC) and {2:s} (UTC).'.format(drypre, ephem.Date(estihad).datetime().strftime('%Y-%m-%d, %H:%M:%S'), ephem.Date(eetihad).datetime().strftime('%Y-%m-%d, %H:%M:%S')))
                 flags = flags+(etimes >= float(estiapp)) * (float(eetiapp) >= etimes)
             else:
                 # Two brackets, add times
@@ -1029,9 +1081,9 @@ class Sunblocker:
                 if verb:
                     estihad = max(estiapp, eobstart)
                     eetihad = min(eetiapp2, eobsend)
-                    print('Vampirisms: {0:s} flagging between {1:s} (UTC) and {2:s} (UTC) and'.format(drypre, ephem.Date(estihad), ephem.Date(eetiapp)))
+                    print('Vampirisms: {0:s} flagging between {1:s} (UTC) and {2:s} (UTC) and'.format(drypre, ephem.Date(estihad).datetime().strftime('%Y-%m-%d, %H:%M:%S'), ephem.Date(eetiapp).datetime().strftime('%Y-%m-%d, %H:%M:%S')))
                     if estiapp2 < eobsend:
-                        print('Vampirisms: {0:s} flagging between {1:s} (UTC) and {2:s} (UTC).'.format(drypre, ephem.Date(estiapp2), ephem.Date(eetihad)))
+                        print('Vampirisms: {0:s} flagging between {1:s} (UTC) and {2:s} (UTC).'.format(drypre, ephem.Date(estiapp2).datetime().strftime('%Y-%m-%d, %H:%M:%S'), ephem.Date(eetihad).datetime().strftime('%Y-%m-%d, %H:%M:%S')))
                 flags = flags+(etimes >= float(estiapp)) * (float(eetiapp) >= etimes)
                 flags = flags+(etimes >= float(estiapp2)) * (float(eetiapp2) >= etimes)
 
@@ -1041,7 +1093,7 @@ class Sunblocker:
             if esti < eobsend:
                 ncross += 1
                 if verb:
-                    print('Vampirisms: the sun (aargh!) rose at {:s}'.format(esti))
+                    print('Vampirisms: the sun (aargh!) rose at {:s}'.format(esti.datetime().strftime('%Y-%m-%d, %H:%M:%S')))
 
         if verb:
             addendum  = ''
