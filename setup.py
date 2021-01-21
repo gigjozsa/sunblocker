@@ -49,7 +49,7 @@ def src_pkg_dirs(pkg_name):
     return pkg_dirs
 
 setup(name=pkg,
-      version="1.0.0",
+      version="1.0.1",
       description=' A (python pyrap) method to remove solar-like RFI from interferometric data',
       long_description=readme(),
       url='https://github.com/gigjozsa/sunblocker',
